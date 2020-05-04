@@ -21,9 +21,9 @@ namespace TempConsole
                     {
                         _instance = FindObjectOfType<TempConsoleWindow>();
                     }
-
-                    return _instance;
                 }
+
+                return _instance;
             }
         }
 
@@ -242,7 +242,7 @@ namespace TempConsole
                 logDetailMutiLine = logDetail.Split('\n');
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
                 {
-                    // 正则匹配at xxx，在第几行
+                    // Regex.Match 'at xxx'
                     Match matches = Regex.Match(logDetailMutiLine[i], @"\(at (.+)\)", RegexOptions.Multiline);
 
                     if (matches.Success)
@@ -250,7 +250,6 @@ namespace TempConsole
                         while (matches.Success)
                         {
                             pathline = matches.Groups[1].Value;
-                            // 找到不是我们自定义log文件的那行，重新整理文件路径，手动打开
                             if (pathline.Contains(tempCase))
                             {
                                 int splitIndex = pathline.LastIndexOf(":");
@@ -282,7 +281,6 @@ namespace TempConsole
             }
 
             GUILayout.EndScrollView();
-
             GUILayout.EndArea();
         }
 
