@@ -585,6 +585,7 @@ namespace TempConsole
         [UnityEditor.Callbacks.DidReloadScripts]
         private static void OnCodeCompiled()
         {
+            // shoud
             if (TempConsoleWindow.Instance && TempConsoleWindow.Instance.IsClearOnBuild)
                 TempConsoleWindow.Instance.ClearLogs();
         }
