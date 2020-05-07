@@ -10,6 +10,8 @@ public class BaseEditor : Editor
 {
     public override void OnInspectorGUI()
     {
+                base.OnInspectorGUI();
+
         // Added functionality
         Type type = target.GetType();
         while (type != null)

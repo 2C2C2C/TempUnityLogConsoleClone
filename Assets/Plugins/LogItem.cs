@@ -1,22 +1,23 @@
 ﻿using UnityEngine;
 
-namespace TempConsole
+namespace TempConsoleLib
 {
+
     public class LogItem
     {
         public bool IsSelected { get; set; }
-        public readonly string LogInfo = string.Empty;
+        public readonly string LogItme = string.Empty;
         public readonly string LogMessage = string.Empty;
+        public readonly string LogStackTrace = string.Empty;
         public readonly LogType GetLogType = LogType.Log;
 
-        public LogItem(bool isSelected, string info, string message, LogType type)
+        public LogItem(string message, string stackTrace, LogType type, bool isSelected = false)
         {
             IsSelected = isSelected;
-            LogInfo = string.Format("[{0}] {1}", System.DateTime.Now.ToLongTimeString(), info);
+            LogItme = System.DateTime.Now.ToString("hh:mm:ss");
             LogMessage = message;
+            LogStackTrace = stackTrace;
             GetLogType = type;
         }
-
     }
-    
 }

@@ -1,47 +1,31 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
-namespace TempConsole
+namespace TempConsoleLib
 {
-    public class TempConsoleWindow : EditorWindow
+    public class TempConsole : EditorWindow
     {
-        private static UnityEngine.Object _lock = new UnityEngine.Object();
-        private static TempConsoleWindow _instance = null;
-        public static TempConsoleWindow Instance
-        {
-            get
-            {
-                lock (_lock)
-                {
-                    if (null == _instance)
-                    {
-                        _instance = FindObjectOfType<TempConsoleWindow>();
-                    }
-                }
-
-                return _instance;
-            }
-        }
-
+        private bool m_hasInited = false;
         private Rect m_menuUpperBar = default;
+        private Rect m_menuLowerBar = default;
         private Rect m_upperPanel = default;
         private Rect m_lowerPanel = default;
         private Rect m_resizer = default;
 
         private float MENU_BAR_HEIGHT = 20.0f;
+
         private float m_upperSizeRatio = 0.5f;
         private readonly float RESIZER_HEIGHT = 4.0f;
         private float PanelGroupHeight => position.height - MENU_BAR_HEIGHT;
         private bool m_isResizing = false;
 
-        // private bool m_isCollapse = false;
+        //private bool m_isCollapse = false;
         private bool m_isClearOnPlay = false;
         private bool m_isClearOnBuild = false;
-        public bool IsClearOnBuild => m_isClearOnBuild;
         private bool m_isErrorPause = false;
         private bool m_isShowLog = true;
         private bool m_isShowWarning = true;
@@ -53,6 +37,7 @@ namespace TempConsole
         private GUIStyle m_panelLabelStyle = default;
         private GUIStyle m_panelStyle = default;
         private GUIStyle m_resizerStyle = default;
+        private GUIStyle m_boxIconStyle = default;
         private GUIStyle m_boxItemStyle = default;
         private GUIStyle m_textAreaStyle = default;
         private GUIStyle m_labelButtonStyle = default;
@@ -64,7 +49,6 @@ namespace TempConsole
         private int m_normalLogCount = 0;
         private int m_warningLogCount = 0;
         private int m_errorLogCount = 0;
-        private List<string> m_numStrs = null;
 
         #region icons
 
@@ -78,7 +62,7 @@ namespace TempConsole
         private Texture2D m_boxBgOdd = null;
         private Texture2D m_boxBgEven = null;
         private Texture2D m_boxBgSelected = null;
-        private Texture2D m_boxIcon = null;
+        private Texture m_boxIcon = null;
 
         #endregion
 
@@ -89,7 +73,7 @@ namespace TempConsole
                 return;
             }
 
-            if (!TempConsoleHelper.TryGoToCode(in m_selectedLogItem))
+            if (Application.isEditor && !TempConsoleHelper.TryGoToCode(m_selectedLogItem))
             {
                 Debug.LogError("Temp Console Error : code jump error");
             }
@@ -97,25 +81,22 @@ namespace TempConsole
 
         public void ClearLogs()
         {
-            if (null != m_selectedLogItem)
-            {
-                m_selectedLogItem.IsSelected = false;
-            }
             m_selectedLogItem = null;
-
-            m_normalLogCount = 0;
-            m_warningLogCount = 0;
-            m_errorLogCount = 0;
-            m_logItems.Clear();
+            TempLogManager.ClearLogs();
             GUI.changed = true;
         }
 
         [MenuItem("Window/Temp Console")]
         private static void OpenWindow()
         {
-            TempConsoleWindow window = GetWindow<TempConsoleWindow>();
-            GUIContent titleContent = new GUIContent("TempConsole", EditorGUIUtility.Load("icons/UnityEditor.ConsoleWindow.png") as Texture2D, "a clone sonsole");
-            window.titleContent = titleContent;
+            TempLogManager.TryInit();
+            TempConsole window = GetWindow<TempConsole>();
+            //if (!window.m_hasInited)
+            //{
+            //    window.ContainerInit();
+            //}
+            Texture2D icon = EditorGUIUtility.Load("icons/UnityEditor.ConsoleWindow.png") as Texture2D;
+            window.titleContent = new GUIContent("TempConsole Window", icon);
         }
 
         #region draw methods
@@ -134,7 +115,7 @@ namespace TempConsole
             }
             GUILayout.Space(5.0f);
 
-            // m_isCollapse = GUILayout.Toggle(m_isCollapse, new GUIContent("Collapse"), EditorStyles.toolbarButton, GUILayout.Width(55.0f));
+            //m_isCollapse = GUILayout.Toggle(m_isCollapse, new GUIContent("Collapse"), EditorStyles.toolbarButton, GUILayout.Width(50.0f));
             m_isClearOnPlay = GUILayout.Toggle(m_isClearOnPlay, new GUIContent("Clear On Play"), EditorStyles.toolbarButton, GUILayout.Width(80.0f));
             m_isClearOnBuild = GUILayout.Toggle(m_isClearOnBuild, new GUIContent("Clear On Build"), EditorStyles.toolbarButton, GUILayout.Width(85.0f));
             m_isErrorPause = GUILayout.Toggle(m_isErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
@@ -144,9 +125,9 @@ namespace TempConsole
             m_normalLogCount = Mathf.Clamp(m_normalLogCount, 0, 100);
             m_warningLogCount = Mathf.Clamp(m_warningLogCount, 0, 100);
             m_errorLogCount = Mathf.Clamp(m_errorLogCount, 0, 100);
-            m_isShowLog = GUILayout.Toggle(m_isShowLog, new GUIContent(m_numStrs[m_normalLogCount], m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
-            m_isShowWarning = GUILayout.Toggle(m_isShowWarning, new GUIContent(m_numStrs[m_warningLogCount], m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
-            m_isShowError = GUILayout.Toggle(m_isShowError, new GUIContent(m_numStrs[m_errorLogCount], m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
+            m_isShowLog = GUILayout.Toggle(m_isShowLog, new GUIContent(TempConsoleHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
+            m_isShowWarning = GUILayout.Toggle(m_isShowWarning, new GUIContent(TempConsoleHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
+            m_isShowError = GUILayout.Toggle(m_isShowError, new GUIContent(TempConsoleHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
 
             m_logTypeForUnshow.Clear();
             if (!m_isShowLog)
@@ -172,9 +153,12 @@ namespace TempConsole
 
         private void DrawUpperPanel()
         {
+            float tempwa = PanelGroupHeight;
+            tempwa = tempwa + 1;
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
             GUILayout.BeginArea(m_upperPanel, m_panelStyle);
-            GUILayout.Label("Log", m_panelLabelStyle);
+            GUILayout.Label("Logs", m_panelLabelStyle);
+            //EditorGUIUtility.AddCursorRect(m_upperPanel, MouseCursor.Link);
 
             // draw all logs
             m_upperPanelScroll = GUILayout.BeginScrollView(m_upperPanelScroll);
@@ -185,7 +169,8 @@ namespace TempConsole
                     continue;
                 }
 
-                if (DrawLogBox(m_logItems[i].LogInfo, m_logItems[i].GetLogType, i % 2 == 0, m_logItems[i].IsSelected))
+                //if (DrawLogBox(m_logItems[i].LogMessage, m_logItems[i].LogItme, m_logItems[i].GetLogType, i % 2 == 0, m_logItems[i].IsSelected))
+                if (DrawLogBox(m_logItems[i], i % 2 == 0, m_logItems[i].IsSelected))
                 {
                     if (null != m_selectedLogItem)
                     {
@@ -199,12 +184,14 @@ namespace TempConsole
                         {
                             m_selectedLogItem.IsSelected = false;
                             m_selectedLogItem = m_logItems[i];
+                            TempLogManager.SelectedItem = m_selectedLogItem;
                             m_selectedLogItem.IsSelected = true;
                         }
                     }
                     else
                     {
                         m_selectedLogItem = m_logItems[i];
+                        TempLogManager.SelectedItem = m_selectedLogItem;
                         m_selectedLogItem.IsSelected = true;
                     }
                     GUI.changed = true;
@@ -236,13 +223,13 @@ namespace TempConsole
 
             if (null != m_selectedLogItem)
             {
-                logDetail = m_selectedLogItem.LogMessage;
-                GUILayout.TextArea(string.Format("{0}\n", m_selectedLogItem.LogInfo), m_textAreaStyle);
+                logDetail = m_selectedLogItem.LogStackTrace;
+                GUILayout.TextArea(string.Format("{0}\n", m_selectedLogItem.LogMessage), m_textAreaStyle);
 
                 logDetailMutiLine = logDetail.Split('\n');
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
                 {
-                    // Regex.Match 'at xxx'
+                    // 正则匹配at xxx，在第几行
                     Match matches = Regex.Match(logDetailMutiLine[i], @"\(at (.+)\)", RegexOptions.Multiline);
 
                     if (matches.Success)
@@ -250,6 +237,7 @@ namespace TempConsole
                         while (matches.Success)
                         {
                             pathline = matches.Groups[1].Value;
+                            // 找到不是我们自定义log文件的那行，重新整理文件路径，手动打开
                             if (pathline.Contains(tempCase))
                             {
                                 int splitIndex = pathline.LastIndexOf(":");
@@ -281,6 +269,7 @@ namespace TempConsole
             }
 
             GUILayout.EndScrollView();
+
             GUILayout.EndArea();
         }
 
@@ -295,30 +284,81 @@ namespace TempConsole
             EditorGUIUtility.AddCursorRect(m_resizer, MouseCursor.ResizeVertical);
         }
 
-        private bool DrawLogBox(in string content, LogType logType, bool isOdd, bool isSelected)
+        //private bool DrawLogBox(in string content, in string timeStr, LogType logType, bool isOdd, bool isSelected)
+        //{
+        //    if (isSelected)
+        //    {
+        //        m_boxItemStyle.normal.background = m_boxBgSelected;
+        //    }
+        //    else
+        //    {
+        //        if (isOdd)
+        //        {
+        //            m_boxItemStyle.normal.background = m_boxBgOdd;
+        //        }
+        //        else
+        //        {
+        //            m_boxItemStyle.normal.background = m_boxBgEven;
+        //        }
+        //    }
+
+        //    switch (logType)
+        //    {
+        //        case LogType.Error:
+        //            m_boxIcon = m_errorIcon;
+        //            break;
+        //        case LogType.Assert:
+        //            m_boxIcon = m_errorIcon;
+        //            break;
+        //        case LogType.Exception:
+        //            m_boxIcon = m_errorIcon;
+        //            break;
+        //        case LogType.Warning:
+        //            m_boxIcon = m_warningIcon;
+        //            break;
+        //        case LogType.Log:
+        //            m_boxIcon = m_infoIcon;
+        //            break;
+
+        //        default:
+        //            break;
+        //    }
+
+        //    GUILayout.BeginHorizontal();
+        //    GUILayout.EndHorizontal();
+        //    return GUILayout.Button(new GUIContent(content, m_boxIcon), m_boxItemStyle, GUILayout.ExpandWidth(true), GUILayout.Height(30.0f));
+        //}
+
+        private bool DrawLogBox(in LogItem logItem, bool isOdd, bool isSelected)
         {
             if (isSelected)
             {
                 m_boxItemStyle.normal.background = m_boxBgSelected;
+                m_boxIconStyle.normal.background = m_boxBgSelected;
             }
             else
             {
                 if (isOdd)
                 {
                     m_boxItemStyle.normal.background = m_boxBgOdd;
+                    m_boxIconStyle.normal.background = m_boxBgOdd;
                 }
                 else
                 {
                     m_boxItemStyle.normal.background = m_boxBgEven;
+                    m_boxIconStyle.normal.background = m_boxBgEven;
                 }
             }
 
-            switch (logType)
+            switch (logItem.GetLogType)
             {
                 case LogType.Error:
                     m_boxIcon = m_errorIcon;
                     break;
                 case LogType.Assert:
+                    m_boxIcon = m_errorIcon;
+                    break;
+                case LogType.Exception:
                     m_boxIcon = m_errorIcon;
                     break;
                 case LogType.Warning:
@@ -327,14 +367,20 @@ namespace TempConsole
                 case LogType.Log:
                     m_boxIcon = m_infoIcon;
                     break;
-                case LogType.Exception:
-                    m_boxIcon = m_errorIcon;
-                    break;
+
                 default:
                     break;
             }
 
-            return GUILayout.Button(new GUIContent(content, m_boxIcon), m_boxItemStyle, GUILayout.ExpandWidth(true), GUILayout.Height(30.0f));
+            bool result1 = true;
+            bool result2 = true;
+
+            GUILayout.BeginHorizontal();
+            result1 = GUILayout.Button(new GUIContent(m_boxIcon), m_boxIconStyle, GUILayout.Height(30.0f));
+            result2 = GUILayout.Button(new GUIContent($"[{ logItem.LogItme }] {logItem.LogMessage}"), m_boxItemStyle, GUILayout.ExpandWidth(true), GUILayout.Height(30.0f));
+            GUILayout.EndHorizontal();
+
+            return result1 || result2;
         }
 
         #endregion draw methods
@@ -358,6 +404,7 @@ namespace TempConsole
         {
             if (m_isResizing)
             {
+                // not correct here
                 float pos = currentEvent.mousePosition.y - MENU_BAR_HEIGHT;
 
                 m_upperSizeRatio = pos / PanelGroupHeight;
@@ -386,10 +433,16 @@ namespace TempConsole
 
             m_panelStyle = new GUIStyle();
             m_panelStyle.normal.background = EditorGUIUtility.Load("builtin skins/darkskin/images/projectbrowsericonareabg.png") as Texture2D;
-            // m_panelStyle.normal.background = GUI.skin.window.normal.background; // IDK why this doesnt work....
+            //m_panelStyle.normal.background = GUI.skin.window.normal.background;
+
+            m_boxIconStyle = new GUIStyle();
+            m_boxIconStyle.fixedHeight = 30.0f;
+            m_boxIconStyle.fixedWidth = 40.0f;
 
             m_boxItemStyle = new GUIStyle();
-            m_boxItemStyle.normal.textColor = new Color(0.7f, 0.7f, 0.7f);
+            m_boxItemStyle.clipping = TextClipping.Clip;
+            m_boxItemStyle.normal.textColor = new Color(0.7f, 0.7f, 0.7f); // ?
+            m_boxItemStyle.fixedHeight = 30.0f;
 
             m_boxBgOdd = EditorGUIUtility.Load("builtin skins/darkskin/images/cn entrybackodd.png") as Texture2D;
             m_boxBgEven = EditorGUIUtility.Load("builtin skins/darkskin/images/cnentrybackeven.png") as Texture2D;
@@ -410,32 +463,11 @@ namespace TempConsole
             b.top = 0;
             b.bottom = 0;
             m_labelButtonStyle.border = b;
-
-        }
-
-        private void InitData()
-        {
-            m_upperSizeRatio = 0.5f;
-            m_logItems = new List<LogItem>();
-            m_selectedLogItem = null;
-
-            m_numStrs = new List<string>();
-            for (int i = 0; i < 100; i++)
-            {
-                m_numStrs.Add(i.ToString());
-            }
-            m_numStrs.Add("99+"); // I dun wanna deal with too much shit
-
-            m_logTypeForUnshow = new HashSet<LogType>();
-
-            m_errorLogCount =
-            m_warningLogCount =
-            m_normalLogCount = 0;
         }
 
         private void LogMessageReceived(string condition, string stackTrace, LogType type)
         {
-            LogItem log = new LogItem(false, condition, stackTrace, type);
+            LogItem log = new LogItem(condition, stackTrace, type);
             m_logItems.Add(log);
             switch (type)
             {
@@ -460,36 +492,6 @@ namespace TempConsole
             }
 
             Repaint();
-            //GUI.changed = true;
-        }
-
-        private void ReceiveTempLog(LogItem logItem)
-        {
-            m_logItems.Add(logItem);
-            switch (logItem.GetLogType)
-            {
-                case LogType.Error:
-                    m_errorLogCount++;
-                    break;
-                case LogType.Assert:
-                    m_errorLogCount++;
-                    break;
-                case LogType.Warning:
-                    m_warningLogCount++;
-                    break;
-                case LogType.Log:
-                    m_normalLogCount++;
-                    break;
-                case LogType.Exception:
-                    m_errorLogCount++;
-                    break;
-                default:
-                    m_errorLogCount++;
-                    break;
-            }
-
-            Repaint();
-            //GUI.changed = true;
         }
 
         private void OnPlayModeChanged(PlayModeStateChange nextPlayMode)
@@ -513,23 +515,67 @@ namespace TempConsole
             }
         }
 
-        private void OnEnable()
+        private void GetData()
         {
-            GetAssets();
+            // too dirty, to fix it next time
+            // make it works for now
+            {
+                TempLogManager.GetLogs(out m_logItems);
+                m_errorLogCount = TempLogManager.ErrorLogCount;
+                m_warningLogCount = TempLogManager.WarningLogCount;
+                m_normalLogCount = TempLogManager.NormalLogCount;
+            }
+        }
 
+        private void WannaRepaint()
+        {
+            GetData();
+            Repaint();
+        }
+
+        private void ContainerInit()
+        {
             m_isShowLog = true;
             m_isShowWarning = true;
             m_isShowError = true;
 
-            // bind events
-            Application.logMessageReceived += LogMessageReceived;
-            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            m_selectedLogItem = null;
 
-            InitData();
+            m_logItems = new List<LogItem>();
+            m_logTypeForUnshow = new HashSet<LogType>();
+
+            m_hasInited = true;
+        }
+
+        private void Awake()
+        {
+            m_upperSizeRatio = 0.5f;
+        }
+
+        private void OnEnable()
+        {
+            m_hasInited = false;
+            GetAssets();
+
+            ContainerInit();
+
+            // now should get logs data from manager
+            TempLogManager.OnNewLogged += WannaRepaint;
+            {
+                TempLogManager.GetLogs(out m_logItems);
+            }
+
+            WannaRepaint();
         }
 
         private void OnGUI()
         {
+            if (!m_hasInited)
+                return;
+
+            // get data first
+            GetData();
+
             DrawMenuUpperBar();
             DrawUpperPanel();
             DrawLowerPanel();
@@ -542,52 +588,10 @@ namespace TempConsole
             }
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
-            // should be save to unbind here
-            Application.logMessageReceived -= LogMessageReceived;
-            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
-
-            if (this == TempConsoleWindow.Instance)
-                TempConsoleWindow._instance = null;
-        }
-
-    }
-
-    public static class TempConsoleHelper
-    {
-        public static bool TryGoToCode(in LogItem logClicked)
-        {
-            bool result = false;
-            string stackTrace = logClicked.LogMessage;
-
-            // try to find the top call
-            if (!string.IsNullOrEmpty(stackTrace))
-            {
-                // regular expression check 'at xxx'
-                Match matches = Regex.Match(stackTrace, @"\(at (.+)\)", RegexOptions.IgnoreCase);
-                string pathline = "";
-                int splitIndex = 0;
-                int line = 0;
-                if (matches.Success)
-                {
-                    pathline = matches.Groups[1].Value;
-                    splitIndex = pathline.LastIndexOf(":");
-                    string path = pathline.Substring(0, splitIndex);
-                    line = Convert.ToInt32(pathline.Substring(splitIndex + 1));
-                    path = $"{Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("Assets"))}{path}";
-                    result = UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path.Replace('/', '\\'), line);
-                }
-            }
-            return result;
-        }
-
-        [UnityEditor.Callbacks.DidReloadScripts]
-        private static void OnCodeCompiled()
-        {
-            // shoud
-            if (TempConsoleWindow.Instance && TempConsoleWindow.Instance.IsClearOnBuild)
-                TempConsoleWindow.Instance.ClearLogs();
+            m_logItems.Clear();
+            TempLogManager.OnNewLogged += WannaRepaint;
         }
 
     }
