@@ -5,9 +5,9 @@ using System;
 [AttributeUsage(AttributeTargets.Method)]
 public class ButtonAttribute : Attribute
 {
-    public string name;
-    public ButtonAttribute(string name)
+    public string m_name;
+    public ButtonAttribute(string methodName)
     {
-        this.name = name;
+        m_name = methodName;
     }
 }

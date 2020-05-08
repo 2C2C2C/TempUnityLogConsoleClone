@@ -1,8 +1,7 @@
 ﻿using UnityEngine;
 
-namespace TempConsoleLib
+namespace CustomLog
 {
-
     public class LogItem
     {
         public bool IsSelected { get; set; }
@@ -14,7 +13,7 @@ namespace TempConsoleLib
         public LogItem(string message, string stackTrace, LogType type, bool isSelected = false)
         {
             IsSelected = isSelected;
-            LogItme = System.DateTime.Now.ToString("hh:mm:ss");
+            LogItme = System.DateTime.Now.ToString("HH:mm:ss");
             LogMessage = message;
             LogStackTrace = stackTrace;
             GetLogType = type;

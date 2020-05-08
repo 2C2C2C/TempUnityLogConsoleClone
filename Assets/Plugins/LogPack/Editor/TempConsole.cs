@@ -5,13 +5,12 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
-namespace TempConsoleLib
+namespace CustomLog
 {
     public class TempConsole : EditorWindow
     {
         private bool m_hasInited = false;
         private Rect m_menuUpperBar = default;
-        private Rect m_menuLowerBar = default;
         private Rect m_upperPanel = default;
         private Rect m_lowerPanel = default;
         private Rect m_resizer = default;
@@ -23,7 +22,6 @@ namespace TempConsoleLib
         private float PanelGroupHeight => position.height - MENU_BAR_HEIGHT;
         private bool m_isResizing = false;
 
-        //private bool m_isCollapse = false;
         private bool m_isClearOnPlay = false;
         private bool m_isClearOnBuild = false;
         private bool m_isErrorPause = false;
@@ -89,12 +87,8 @@ namespace TempConsoleLib
         [MenuItem("Window/Temp Console")]
         private static void OpenWindow()
         {
-            TempLogManager.TryInit();
+            TempLogManager.InitLogManager();
             TempConsole window = GetWindow<TempConsole>();
-            //if (!window.m_hasInited)
-            //{
-            //    window.ContainerInit();
-            //}
             Texture2D icon = EditorGUIUtility.Load("icons/UnityEditor.ConsoleWindow.png") as Texture2D;
             window.titleContent = new GUIContent("TempConsole Window", icon);
         }
@@ -169,7 +163,6 @@ namespace TempConsoleLib
                     continue;
                 }
 
-                //if (DrawLogBox(m_logItems[i].LogMessage, m_logItems[i].LogItme, m_logItems[i].GetLogType, i % 2 == 0, m_logItems[i].IsSelected))
                 if (DrawLogBox(m_logItems[i], i % 2 == 0, m_logItems[i].IsSelected))
                 {
                     if (null != m_selectedLogItem)
@@ -229,7 +222,7 @@ namespace TempConsoleLib
                 logDetailMutiLine = logDetail.Split('\n');
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
                 {
-                    // 正则匹配at xxx，在第几行
+                    // regex match
                     Match matches = Regex.Match(logDetailMutiLine[i], @"\(at (.+)\)", RegexOptions.Multiline);
 
                     if (matches.Success)
@@ -237,7 +230,7 @@ namespace TempConsoleLib
                         while (matches.Success)
                         {
                             pathline = matches.Groups[1].Value;
-                            // 找到不是我们自定义log文件的那行，重新整理文件路径，手动打开
+                            // find .cs file
                             if (pathline.Contains(tempCase))
                             {
                                 int splitIndex = pathline.LastIndexOf(":");
@@ -283,51 +276,6 @@ namespace TempConsoleLib
 
             EditorGUIUtility.AddCursorRect(m_resizer, MouseCursor.ResizeVertical);
         }
-
-        //private bool DrawLogBox(in string content, in string timeStr, LogType logType, bool isOdd, bool isSelected)
-        //{
-        //    if (isSelected)
-        //    {
-        //        m_boxItemStyle.normal.background = m_boxBgSelected;
-        //    }
-        //    else
-        //    {
-        //        if (isOdd)
-        //        {
-        //            m_boxItemStyle.normal.background = m_boxBgOdd;
-        //        }
-        //        else
-        //        {
-        //            m_boxItemStyle.normal.background = m_boxBgEven;
-        //        }
-        //    }
-
-        //    switch (logType)
-        //    {
-        //        case LogType.Error:
-        //            m_boxIcon = m_errorIcon;
-        //            break;
-        //        case LogType.Assert:
-        //            m_boxIcon = m_errorIcon;
-        //            break;
-        //        case LogType.Exception:
-        //            m_boxIcon = m_errorIcon;
-        //            break;
-        //        case LogType.Warning:
-        //            m_boxIcon = m_warningIcon;
-        //            break;
-        //        case LogType.Log:
-        //            m_boxIcon = m_infoIcon;
-        //            break;
-
-        //        default:
-        //            break;
-        //    }
-
-        //    GUILayout.BeginHorizontal();
-        //    GUILayout.EndHorizontal();
-        //    return GUILayout.Button(new GUIContent(content, m_boxIcon), m_boxItemStyle, GUILayout.ExpandWidth(true), GUILayout.Height(30.0f));
-        //}
 
         private bool DrawLogBox(in LogItem logItem, bool isOdd, bool isSelected)
         {
@@ -434,6 +382,7 @@ namespace TempConsoleLib
             m_panelStyle = new GUIStyle();
             m_panelStyle.normal.background = EditorGUIUtility.Load("builtin skins/darkskin/images/projectbrowsericonareabg.png") as Texture2D;
             //m_panelStyle.normal.background = GUI.skin.window.normal.background;
+            // shoud do it some where else, such as do it in OnGui()
 
             m_boxIconStyle = new GUIStyle();
             m_boxIconStyle.fixedHeight = 30.0f;
@@ -560,7 +509,7 @@ namespace TempConsoleLib
             ContainerInit();
 
             // now should get logs data from manager
-            TempLogManager.OnNewLogged += WannaRepaint;
+            TempLogManager.OnLogItemCreated += WannaRepaint;
             {
                 TempLogManager.GetLogs(out m_logItems);
             }
@@ -591,7 +540,7 @@ namespace TempConsoleLib
         private void OnDisable()
         {
             m_logItems.Clear();
-            TempLogManager.OnNewLogged += WannaRepaint;
+            TempLogManager.OnLogItemCreated += WannaRepaint;
         }
 
     }

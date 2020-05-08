@@ -1,30 +1,39 @@
 ﻿using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEditor;
-using UnityEditor.Compilation;
 using UnityEngine;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using UnityEditor.Callbacks;
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEditor.Compilation;
+#endif
 
-namespace TempConsoleLib
+namespace CustomLog
 {
-    public class TempLogManager
+    public static class TempLogManager
     {
         public static bool HasInited { get; private set; }
-        public static readonly Type SelfType = typeof(TempLogManager);
 
-        private static List<LogItem> _logItems = null;
-        public static LogItem SelectedItem { get; set; }
-        public static readonly string MANAGER_TAG = "[LogManager]";
-
-        private static string[] _logCategoryStrs = null;
+        private static readonly string MANAGER_TAG = "[LogManager]";
 
         public static int NormalLogCount { get; private set; }
         public static int WarningLogCount { get; private set; }
         public static int ErrorLogCount { get; private set; }
+
+        private static StreamWriter m_logFileWriter = null;
+        private static readonly string LOG_FILE_NAME = "LogFile";
+
+        private static string[] m_logCategoryStrs = null;
+
+#if UNITY_EDITOR
+
+        #region variables for editor
+
+        public static readonly Type SelfType = typeof(TempLogManager);
+
+        private static List<LogItem> m_logItems = null;
+        public static LogItem SelectedItem { get; set; }
 
         public static bool IsClearOnPlay = false;
         public static bool IsClearOnBuild = false;
@@ -33,9 +42,14 @@ namespace TempConsoleLib
         public static bool IsShowWarning = true;
         public static bool IsShowError = true;
 
-        public static event Action OnNewLogged;
+        public static event Action OnLogItemCreated;
 
-        #region danger
+        #region to get unity console and logs
+
+        private static readonly int LOG_FLAG = 1 << 7;
+        private static readonly int WARNING_FLAG = 1 << 8;
+        private static readonly int ERROR_FLAG = 1 << 9;
+
         private static Type m_entriesType = null;
         private static Type m_entryType = null;
         private static Type m_consoleWindow = null;
@@ -89,75 +103,39 @@ namespace TempConsoleLib
 
         #endregion
 
+        #endregion
+
+#endif
+
+#if UNITY_EDITOR
         [InitializeOnLoadMethod]
-        public static void TryInit()
+#endif
+        public static void InitLogManager()
         {
-            _logItems = new List<LogItem>();
+            HasInited = false;
+            Application.logMessageReceived -= LogMessageReceived;
+            Application.logMessageReceived += LogMessageReceived;
+
+            if (!Application.isEditor)
+            {
+                Application.quitting += OnGameQuit;
+                FreshFileWriter();
+            }
+
             NormalLogCount = 0;
             WarningLogCount = 0;
             ErrorLogCount = 0;
 
-            Application.logMessageReceived -= LogMessageReceived;
-            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
-            EditorApplication.quitting -= OnEditorQuitting;
-
-            Application.logMessageReceived += LogMessageReceived;
-            EditorApplication.playModeStateChanged += OnPlayModeChanged;
-            EditorApplication.quitting += OnEditorQuitting;
+#if UNITY_EDITOR
+            InitLogmanagerForEditor();
+#endif
 
             HasInited = true;
-
-            // to capture error first than warning fianlly info.
-            {
-                // // enable all log for default console cuz we need to capture all log from it.
-                var setall = UnityConsoleWindow.GetMethod("SetFlag", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-                setall.Invoke(null, new object[] { 1 << 7, true });
-                setall.Invoke(null, new object[] { 1 << 8, true });
-                setall.Invoke(null, new object[] { 1 << 9, true });
-
-                // danger
-                int startIndex = 0;
-                var m = UnityLogEntries.GetMethod("GetEntryInternal", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-                var start = UnityLogEntries.GetMethod("StartGettingEntries", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-                start.Invoke(null, null);
-
-                int count = GetUnityLogCount();
-                LogItem logItem = null;
-                int cutIndex = 0;
-                for (int i = 0; i < count; i++)
-                {
-                    if (i >= startIndex)
-                    {
-                        var e = Activator.CreateInstance(UnityLogEntry);
-                        m.Invoke(null, new object[] { i, e });
-
-                        FieldInfo field = e.GetType().GetField("condition", BindingFlags.Instance | BindingFlags.Public);
-                        string condition = (string)field.GetValue(e);
-
-                        // field = e.GetType().GetField("instanceID", BindingFlags.Instance | BindingFlags.Public);
-                        // int instanceID = (int)field.GetValue(e);
-
-                        field = e.GetType().GetField("mode", BindingFlags.Instance | BindingFlags.Public);
-                        int mode = (int)field.GetValue(e);
-
-                        // cutIndex = condition.IndexOf('\n');
-                        // string stackTrace = string.Empty;
-
-                        logItem = new LogItem(condition, string.Empty, LogType.Warning);
-                        _logItems.Add(logItem);
-                    }
-
-                }
-                var end = UnityLogEntries.GetMethod("EndGettingEntries", BindingFlags.Static | BindingFlags.Public);
-                end.Invoke(null, null);
-            }
-
         }
 
         public static void CreateLog(in string message, LogType logType)
         {
             string fullMessage = null;
-
             fullMessage = $"[{MANAGER_TAG}] {message}";
 
             // create log here
@@ -184,11 +162,10 @@ namespace TempConsoleLib
             }
         }
 
-        public static void GetLogs(out List<LogItem> logs)
-        {
-            logs = new List<LogItem>();
-            logs.AddRange(_logItems);
-        }
+        #region methods for editor
+
+#if UNITY_EDITOR
+        // here are some methods only used in editor
 
         public static void ClearLogs()
         {
@@ -196,21 +173,132 @@ namespace TempConsoleLib
             NormalLogCount = 0;
             WarningLogCount = 0;
             ErrorLogCount = 0;
-            _logItems.Clear();
+            m_logItems.Clear();
             ClearUnityLogConsole();
+        }
+
+        public static void GetLogs(out List<LogItem> logs)
+        {
+            logs = new List<LogItem>();
+            logs.AddRange(m_logItems);
+        }
+
+        private static void OnPlayModeChanged(PlayModeStateChange playMode)
+        {
+            if (PlayModeStateChange.EnteredPlayMode == playMode && IsClearOnPlay)
+            {
+                ClearLogs();
+            }
+
+            if (PlayModeStateChange.EnteredPlayMode == playMode)
+            {
+                FreshFileWriter();
+            }
+
+            if (PlayModeStateChange.ExitingPlayMode == playMode)
+            {
+                CloseFileWriter();
+            }
         }
 
         private static void OnEditorQuitting()
         {
+            CompilationPipeline.assemblyCompilationStarted -= OnCodeCompileStart;
             Application.logMessageReceived -= LogMessageReceived;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.quitting -= OnEditorQuitting;
         }
 
-        private static void OnPlayModeChanged(PlayModeStateChange obj)
+        private static void OnCodeCompileStart(string obj)
         {
-
+            ClearUnityLogConsole();
+            ClearLogs();
         }
+
+        private static void InitLogmanagerForEditor()
+        {
+            m_logItems = new List<LogItem>();
+
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.quitting -= OnEditorQuitting;
+
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            EditorApplication.quitting += OnEditorQuitting;
+
+            // to capture the logs already in Unitu Console
+            // enable all log for default console cuz we need to capture all log from it.
+            GetLogsFromUnityConsole(LogType.Log);
+            GetLogsFromUnityConsole(LogType.Warning);
+            GetLogsFromUnityConsole(LogType.Error);
+
+            CompilationPipeline.assemblyCompilationStarted += OnCodeCompileStart;
+        }
+
+        private static void GetLogsFromUnityConsole(LogType logType)
+        {
+            int enableLogFlag = 0;
+
+            switch (logType)
+            {
+                case LogType.Error:
+                case LogType.Assert:
+                    enableLogFlag = ERROR_FLAG;
+                    break;
+                case LogType.Warning:
+                    enableLogFlag = WARNING_FLAG;
+                    break;
+                case LogType.Log:
+                    enableLogFlag = LOG_FLAG;
+                    break;
+                case LogType.Exception:
+                    enableLogFlag = ERROR_FLAG;
+                    break;
+                default:
+                    enableLogFlag = LOG_FLAG | WARNING_FLAG | ERROR_FLAG;
+                    logType = LogType.Log;
+                    break;
+            }
+
+            // to capture the logs already in Unitu Console
+            // enable all log for default console cuz we need to capture all log from it.
+            var setall = UnityConsoleWindow.GetMethod("SetFlag", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            setall.Invoke(null, new object[] { LOG_FLAG, false });
+            setall.Invoke(null, new object[] { WARNING_FLAG, false });
+            setall.Invoke(null, new object[] { ERROR_FLAG, false });
+            setall.Invoke(null, new object[] { enableLogFlag, true });
+
+            // danger
+            int startIndex = 0;
+            var m = UnityLogEntries.GetMethod("GetEntryInternal", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            var start = UnityLogEntries.GetMethod("StartGettingEntries", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            start.Invoke(null, null);
+
+            int count = GetUnityLogCount();
+            LogItem logItem = null;
+            for (int i = 0; i < count; i++)
+            {
+                if (i >= startIndex)
+                {
+                    var e = Activator.CreateInstance(UnityLogEntry);
+                    m.Invoke(null, new object[] { i, e });
+
+                    FieldInfo field = e.GetType().GetField("condition", BindingFlags.Instance | BindingFlags.Public);
+                    string condition = (string)field.GetValue(e);
+
+                    logItem = new LogItem(condition, string.Empty, logType);
+                    m_logItems.Add(logItem);
+                }
+
+            }
+            var end = UnityLogEntries.GetMethod("EndGettingEntries", BindingFlags.Static | BindingFlags.Public);
+            end.Invoke(null, null);
+
+            setall.Invoke(null, new object[] { LOG_FLAG, true });
+            setall.Invoke(null, new object[] { WARNING_FLAG, true });
+            setall.Invoke(null, new object[] { ERROR_FLAG, true });
+        }
+#endif
+        #endregion
 
         private static void LogMessageReceived(string message, string stackTrace, LogType type)
         {
@@ -237,80 +325,92 @@ namespace TempConsoleLib
                     break;
             }
 
-
-            //if (message[0] == '[') // magic 
             if (-1 < message.IndexOf(MANAGER_TAG))
             {
                 try
                 {
                     // it's our custom log, add it
-                    string logCateStr = message;
-                    logCateStr = logCateStr.Remove(0, MANAGER_TAG.Length);
-                    logCateStr = logCateStr.Substring(logCateStr.IndexOf('[') + 1, logCateStr.IndexOf(']') - logCateStr.IndexOf('[') - 1);
                     log = new LogItem(message, stackTrace, type);
-                    _logItems.Add(log);
                 }
                 catch (Exception e) // 
                 {
                     Debug.LogError($"LogManager got a error with custom log {e.InnerException}");
                     log = new LogItem(message, stackTrace, type);
-                    _logItems.Add(log);
                 }
             }
             else
             {
                 // it's default log, add it
                 log = new LogItem(message, stackTrace, type);
-                _logItems.Add(log);
             }
 
-
-            OnNewLogged?.Invoke();
-        }
-
-        private static void ReceiveTempLog(LogItem logItem)
-        {
-            _logItems.Add(logItem);
-            switch (logItem.GetLogType)
+            if (null != log)
             {
-                case LogType.Error:
-                    ErrorLogCount++;
-                    break;
-                case LogType.Assert:
-                    ErrorLogCount++;
-                    break;
-                case LogType.Warning:
-                    WarningLogCount++;
-                    break;
-                case LogType.Log:
-                    NormalLogCount++;
-                    break;
-                case LogType.Exception:
-                    ErrorLogCount++;
-                    break;
-                default:
-                    ErrorLogCount++;
-                    break;
+#if UNITY_EDITOR
+                m_logItems.Add(log);
+                OnLogItemCreated?.Invoke();
+#endif
+                WriteLogToFile(log);
             }
-            OnNewLogged?.Invoke();
         }
 
-        //[OnOpenAssetAttribute(1)]
-        //public static bool LeadToCorrectCode1(int instanceID, int line)
-        //{
-        //    bool result = false;
-        //    // if the log jumped into this file, maybe you try to open the code who use LogManager
-        //    if (null != SelectedItem)
-        //    {
-        //        string stackTrace = SelectedItem.LogStackTrace;
+        private static void FreshFileWriter()
+        {
+            if (null != m_logFileWriter)
+                CloseFileWriter();
 
-        //    }
+            string path = null;
+            path = $"{Application.persistentDataPath}/{LOG_FILE_NAME}_{System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}.txt";
+            m_logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
+            m_logFileWriter.WriteLine($"Game launch");
+            m_logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
+            m_logFileWriter.WriteLine($"----------------------------------------\n");
+        }
 
-        //    return result;
-        //}
+        private static void CloseFileWriter()
+        {
+            if (null != m_logFileWriter)
+            {
+                m_logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}");
+                m_logFileWriter.WriteLine($"Result:\n log : {NormalLogCount}\n warning : {WarningLogCount}\n error : {ErrorLogCount}\n");
+                m_logFileWriter.Dispose();
+                m_logFileWriter.Close();
+            }
+            m_logFileWriter = null;
+        }
+
+        private static void WriteLogToFile(in LogItem logItem)
+        {
+#if UNITY_EDITOR
+            if (Application.isEditor && !EditorApplication.isPlaying)
+            {
+                return;
+            }
+#endif
+
+            if (Application.isPlaying)
+            {
+                if (m_logFileWriter == null)
+                {
+                    FreshFileWriter();
+                }
+
+                // write log to file
+                m_logFileWriter.WriteLine($"{logItem.GetLogType}\n{logItem.LogItme}\n{logItem.LogMessage}\n\n{logItem.LogStackTrace}");
+                m_logFileWriter.WriteLine("-----------------------------\n");
+            }
+        }
+
+        private static void OnGameQuit()
+        {
+            Application.logMessageReceived -= LogMessageReceived;
+            Application.quitting -= OnGameQuit;
+            CloseFileWriter();
+        }
 
     }
 
+#if UNITY_EDITOR
     public static class TempConsoleHelper
     {
         private static string[] m_strings = null;
@@ -367,7 +467,8 @@ namespace TempConsoleLib
                 {
                     while (matches.Value.Contains(TempLogManager.SelfType.Name))
                     {
-                        matches.NextMatch();
+                        stackTrace = stackTrace.Remove(0, matches.Index + matches.Length);
+                        matches = Regex.Match(stackTrace, @"\(at (.+)\)", RegexOptions.IgnoreCase);
                     }
                     pathline = matches.Groups[1].Value;
                     splitIndex = pathline.LastIndexOf(":");
@@ -393,24 +494,17 @@ namespace TempConsoleLib
             }
             else
             {
-                // should check log info, maybe it is a compile log
-                //matches = Regex.Match(stackTrace, @"/.cs([0-9],[0-9])", RegexOptions.IgnoreCase);
-                //int tryFind = stackTrace.IndexOf(".cs");
-                //if (tryFind > -1)
-                //{
-                // find 
                 stackTrace = logClicked.LogMessage;
-                matches = Regex.Match(stackTrace, @"Assets(\\([a-zA-Z0-9])*)*.cs", RegexOptions.IgnoreCase);
+                matches = Regex.Match(stackTrace, @"Assets(\\([a-zA-Z0-9])*)*.cs\(([0-9]*,[0-9]*)\)", RegexOptions.IgnoreCase);
                 string pathline = "";
-                int splitIndex = 0;
                 int line = 0;
                 if (matches.Success)
                 {
-                    pathline = matches.Groups[1].Value;
-                    splitIndex = pathline.LastIndexOf(":");
-                    string path = pathline.Substring(0, splitIndex);
-                    line = Convert.ToInt32(pathline.Substring(splitIndex + 1));
-                    path = $"{Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("Assets"))}{path}";
+                    //pathline = matches.Groups[1].Value;
+                    pathline = matches.Value;
+                    int lineNumLen = pathline.LastIndexOf(",") - pathline.LastIndexOf("(") - 1;
+                    Int32.TryParse(pathline.Substring(pathline.LastIndexOf("(") + 1, lineNumLen), out line);
+                    string path = $"{Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("Assets"))}{pathline.Remove(pathline.LastIndexOf("("))}";
                     result = UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path.Replace('/', '\\'), line);
                 }
                 else
@@ -419,20 +513,10 @@ namespace TempConsoleLib
                     return true;
                 }
 
-
             }
             return result;
         }
-
     }
-
-    [Serializable]
-    public class TempLog
-    {
-        public string Time = null;
-        public string Info = null;
-        public string Detail = null;
-        public int LogType = 0;
-    }
+#endif
 
 }
