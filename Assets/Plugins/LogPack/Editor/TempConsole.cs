@@ -109,7 +109,6 @@ namespace CustomLog
             }
             GUILayout.Space(5.0f);
 
-            //m_isCollapse = GUILayout.Toggle(m_isCollapse, new GUIContent("Collapse"), EditorStyles.toolbarButton, GUILayout.Width(50.0f));
             m_isClearOnPlay = GUILayout.Toggle(m_isClearOnPlay, new GUIContent("Clear On Play"), EditorStyles.toolbarButton, GUILayout.Width(80.0f));
             m_isClearOnBuild = GUILayout.Toggle(m_isClearOnBuild, new GUIContent("Clear On Build"), EditorStyles.toolbarButton, GUILayout.Width(85.0f));
             m_isErrorPause = GUILayout.Toggle(m_isErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
@@ -152,7 +151,6 @@ namespace CustomLog
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
             GUILayout.BeginArea(m_upperPanel, m_panelStyle);
             GUILayout.Label("Logs", m_panelLabelStyle);
-            //EditorGUIUtility.AddCursorRect(m_upperPanel, MouseCursor.Link);
 
             // draw all logs
             m_upperPanelScroll = GUILayout.BeginScrollView(m_upperPanelScroll);
@@ -171,7 +169,6 @@ namespace CustomLog
                         {
                             // click a some one, open code
                             JumpToCurrentLogPos();
-
                         }
                         else
                         {
@@ -406,7 +403,7 @@ namespace CustomLog
             m_labelButtonStyle.normal.background = m_textAreaStyle.normal.background;
             m_labelButtonStyle.alignment = TextAnchor.MiddleLeft;
             m_labelButtonStyle.stretchWidth = false;
-            var b = m_labelButtonStyle.border;
+            RectOffset b = m_labelButtonStyle.border;
             b.left = 0;
             b.right = 0;
             b.top = 0;

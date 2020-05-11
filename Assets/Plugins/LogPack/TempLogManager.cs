@@ -133,31 +133,61 @@ namespace CustomLog
             HasInited = true;
         }
 
+        public static void Log(in string message)
+        {
+            CreateLog(message, LogType.Log);
+        }
+
+        public static void Log(in string message, params object[] args)
+        {
+            CreateLog(string.Format(message, args), LogType.Log);
+        }
+
+        public static void LogWarning(in string message)
+        {
+            CreateLog(message, LogType.Warning);
+        }
+
+        public static void LogWarning(in string message, params object[] args)
+        {
+            CreateLog(string.Format(message, args), LogType.Warning);
+        }
+
+        public static void LogError(in string message)
+        {
+            CreateLog(message, LogType.Error);
+        }
+
+        public static void LogError(in string message, params object[] args)
+        {
+            CreateLog(string.Format(message, args), LogType.Error);
+        }
+
         public static void CreateLog(in string message, LogType logType)
         {
             string fullMessage = null;
-            fullMessage = $"[{MANAGER_TAG}] {message}";
+            fullMessage = $"{MANAGER_TAG} {message}";
 
             // create log here
             switch (logType)
             {
                 case LogType.Error:
-                    Debug.LogError(fullMessage = $"{MANAGER_TAG} {message}");
+                    Debug.LogError(fullMessage);
                     break;
                 case LogType.Assert:
-                    Debug.LogError(fullMessage = $"{MANAGER_TAG} {message}");
+                    Debug.LogError(fullMessage);
                     break;
                 case LogType.Exception:
-                    Debug.LogError(fullMessage = $"{MANAGER_TAG} {message}");
+                    Debug.LogError(fullMessage);
                     break;
                 case LogType.Warning:
-                    Debug.LogWarning(fullMessage = $"{MANAGER_TAG} {message}");
+                    Debug.LogWarning(fullMessage);
                     break;
                 case LogType.Log:
-                    Debug.Log(fullMessage = $"{MANAGER_TAG} {message}");
+                    Debug.Log(fullMessage);
                     break;
                 default:
-                    Debug.LogError(fullMessage = $"{MANAGER_TAG} {message}");
+                    Debug.LogError(fullMessage);
                     break;
             }
         }
