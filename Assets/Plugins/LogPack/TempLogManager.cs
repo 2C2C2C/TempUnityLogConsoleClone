@@ -30,10 +30,13 @@ namespace CustomLog
 
         #region variables for editor
 
+        public static int PrevShowLogCount { get; private set; }
+        public static int CurrentShowLogCount { get; private set; }
+
         public static readonly Type SelfType = typeof(TempLogManager);
 
-        private static List<LogItem> m_logItems = null;
-        public static LogItem SelectedItem { get; set; }
+        private static List<TempLogItem> m_logItems = null;
+        public static TempLogItem SelectedItem { get; set; }
 
         public static bool IsClearOnPlay = false;
         public static bool IsClearOnBuild = false;
@@ -46,9 +49,10 @@ namespace CustomLog
 
         #region to get unity console and logs
 
-        private static readonly int LOG_FLAG = 1 << 7;
-        private static readonly int WARNING_FLAG = 1 << 8;
-        private static readonly int ERROR_FLAG = 1 << 9;
+        public static readonly int LOG_FLAG = 1 << 7;
+        public static readonly int WARNING_FLAG = 1 << 8;
+        public static readonly int ERROR_FLAG = 1 << 9;
+        private static int m_logFlags = 0;
 
         private static Type m_entriesType = null;
         private static Type m_entryType = null;
@@ -122,6 +126,8 @@ namespace CustomLog
                 FreshFileWriter();
             }
 
+            m_logFlags = LOG_FLAG | WARNING_FLAG | ERROR_FLAG;
+
             NormalLogCount = 0;
             WarningLogCount = 0;
             ErrorLogCount = 0;
@@ -192,6 +198,31 @@ namespace CustomLog
             }
         }
 
+        public static int GetLogFlagByType(LogType logType)
+        {
+            int result = 0;
+            switch (logType)
+            {
+                case LogType.Error:
+                case LogType.Assert:
+                    result = ERROR_FLAG;
+                    break;
+                case LogType.Warning:
+                    result = WARNING_FLAG;
+                    break;
+                case LogType.Log:
+                    result = LOG_FLAG;
+                    break;
+                case LogType.Exception:
+                    result = ERROR_FLAG;
+                    break;
+                default:
+                    result = LOG_FLAG;
+                    break;
+            }
+            return result;
+        }
+
         #region methods for editor
 
 #if UNITY_EDITOR
@@ -207,10 +238,31 @@ namespace CustomLog
             ClearUnityLogConsole();
         }
 
-        public static void GetLogs(out List<LogItem> logs)
+        public static void GetLogs(out List<TempLogItem> logs)
         {
-            logs = new List<LogItem>();
-            logs.AddRange(m_logItems);
+            PrevShowLogCount = CurrentShowLogCount;
+            CurrentShowLogCount = 0;
+            // too bad
+            logs = new List<TempLogItem>();
+            for (int i = 0; i < m_logItems.Count; i++)
+            {
+                if (m_logItems[i].GetLogTypeFlag == (m_logItems[i].GetLogTypeFlag & m_logFlags))
+                {
+                    CurrentShowLogCount++;
+                    logs.Add(m_logItems[i]);
+                }
+            }
+        }
+
+        public static void SetShowingLogFlag(bool enableLog, bool enableWarning, bool enableError)
+        {
+            m_logFlags = 0;
+            if (enableLog)
+                m_logFlags = m_logFlags | LOG_FLAG;
+            if (enableWarning)
+                m_logFlags = m_logFlags | WARNING_FLAG;
+            if (enableError)
+                m_logFlags = m_logFlags | ERROR_FLAG;
         }
 
         private static void OnPlayModeChanged(PlayModeStateChange playMode)
@@ -247,7 +299,7 @@ namespace CustomLog
 
         private static void InitLogmanagerForEditor()
         {
-            m_logItems = new List<LogItem>();
+            m_logItems = new List<TempLogItem>();
 
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.quitting -= OnEditorQuitting;
@@ -304,7 +356,7 @@ namespace CustomLog
             start.Invoke(null, null);
 
             int count = GetUnityLogCount();
-            LogItem logItem = null;
+            TempLogItem logItem = null;
             for (int i = 0; i < count; i++)
             {
                 if (i >= startIndex)
@@ -315,7 +367,7 @@ namespace CustomLog
                     FieldInfo field = e.GetType().GetField("condition", BindingFlags.Instance | BindingFlags.Public);
                     string condition = (string)field.GetValue(e);
 
-                    logItem = new LogItem(condition, string.Empty, logType);
+                    logItem = new TempLogItem(condition, string.Empty, logType, enableLogFlag);
                     m_logItems.Add(logItem);
                 }
 
@@ -332,7 +384,7 @@ namespace CustomLog
 
         private static void LogMessageReceived(string message, string stackTrace, LogType type)
         {
-            LogItem log = null;
+            TempLogItem log = null;
             switch (type)
             {
                 case LogType.Error:
@@ -355,23 +407,24 @@ namespace CustomLog
                     break;
             }
 
+            int logFlag = GetLogFlagByType(type);
             if (-1 < message.IndexOf(MANAGER_TAG))
             {
                 try
                 {
                     // it's our custom log, add it
-                    log = new LogItem(message, stackTrace, type);
+                    log = new TempLogItem(message, stackTrace, type, logFlag);
                 }
                 catch (Exception e) // 
                 {
                     Debug.LogError($"LogManager got a error with custom log {e.InnerException}");
-                    log = new LogItem(message, stackTrace, type);
+                    log = new TempLogItem(message, stackTrace, type, logFlag);
                 }
             }
             else
             {
                 // it's default log, add it
-                log = new LogItem(message, stackTrace, type);
+                log = new TempLogItem(message, stackTrace, type, logFlag);
             }
 
             if (null != log)
@@ -409,7 +462,7 @@ namespace CustomLog
             m_logFileWriter = null;
         }
 
-        private static void WriteLogToFile(in LogItem logItem)
+        private static void WriteLogToFile(in TempLogItem logItem)
         {
 #if UNITY_EDITOR
             if (Application.isEditor && !EditorApplication.isPlaying)
@@ -480,7 +533,7 @@ namespace CustomLog
             return resultStr;
         }
 
-        public static bool TryGoToCode(in LogItem logClicked)
+        public static bool TryGoToCode(in TempLogItem logClicked)
         {
             bool result = false;
             string stackTrace = logClicked.LogStackTrace;

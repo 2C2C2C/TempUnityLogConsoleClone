@@ -15,6 +15,8 @@ namespace CustomLog
         private Rect m_lowerPanel = default;
         private Rect m_resizer = default;
 
+        private readonly float SMALL_ICON_WIDTH = 40.0f;
+        private readonly float BOX_ITEM_SIZE = 28.0f;
         private float MENU_BAR_HEIGHT = 20.0f;
 
         private float m_upperSizeRatio = 0.5f;
@@ -32,7 +34,7 @@ namespace CustomLog
         private Vector2 m_upperPanelScroll = default;
         private Vector2 m_lowerPanelScroll = default;
 
-        private GUIStyle m_panelLabelStyle = default;
+        // private GUIStyle m_panelLabelStyle = default;
         private GUIStyle m_panelStyle = default;
         private GUIStyle m_resizerStyle = default;
         private GUIStyle m_boxIconStyle = default;
@@ -40,9 +42,8 @@ namespace CustomLog
         private GUIStyle m_textAreaStyle = default;
         private GUIStyle m_labelButtonStyle = default;
 
-        private List<LogItem> m_logItems = null;
-        private HashSet<LogType> m_logTypeForUnshow = null;
-        private LogItem m_selectedLogItem = null;
+        private List<TempLogItem> m_logItems = null;
+        private TempLogItem m_selectedLogItem = null;
 
         private int m_normalLogCount = 0;
         private int m_warningLogCount = 0;
@@ -90,7 +91,7 @@ namespace CustomLog
             TempLogManager.InitLogManager();
             TempConsole window = GetWindow<TempConsole>();
             Texture2D icon = EditorGUIUtility.Load("icons/UnityEditor.ConsoleWindow.png") as Texture2D;
-            window.titleContent = new GUIContent("TempConsole Window", icon);
+            window.titleContent = new GUIContent("TempConsole", icon);
         }
 
         #region draw methods
@@ -118,27 +119,11 @@ namespace CustomLog
             m_normalLogCount = Mathf.Clamp(m_normalLogCount, 0, 100);
             m_warningLogCount = Mathf.Clamp(m_warningLogCount, 0, 100);
             m_errorLogCount = Mathf.Clamp(m_errorLogCount, 0, 100);
-            m_isShowLog = GUILayout.Toggle(m_isShowLog, new GUIContent(TempConsoleHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
-            m_isShowWarning = GUILayout.Toggle(m_isShowWarning, new GUIContent(TempConsoleHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
-            m_isShowError = GUILayout.Toggle(m_isShowError, new GUIContent(TempConsoleHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(30.0f));
+            m_isShowLog = GUILayout.Toggle(m_isShowLog, new GUIContent(TempConsoleHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(SMALL_ICON_WIDTH));
+            m_isShowWarning = GUILayout.Toggle(m_isShowWarning, new GUIContent(TempConsoleHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(SMALL_ICON_WIDTH));
+            m_isShowError = GUILayout.Toggle(m_isShowError, new GUIContent(TempConsoleHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(SMALL_ICON_WIDTH));
 
-            m_logTypeForUnshow.Clear();
-            if (!m_isShowLog)
-            {
-                m_logTypeForUnshow.Add(LogType.Log);
-            }
-
-            if (!m_isShowWarning)
-            {
-                m_logTypeForUnshow.Add(LogType.Warning);
-            }
-
-            if (!m_isShowError)
-            {
-                m_logTypeForUnshow.Add(LogType.Error);
-                m_logTypeForUnshow.Add(LogType.Assert);
-                m_logTypeForUnshow.Add(LogType.Exception);
-            }
+            TempLogManager.SetShowingLogFlag(m_isShowLog, m_isShowWarning, m_isShowError);
 
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -150,17 +135,22 @@ namespace CustomLog
             tempwa = tempwa + 1;
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
             GUILayout.BeginArea(m_upperPanel, m_panelStyle);
-            GUILayout.Label("Logs", m_panelLabelStyle);
+            // GUILayout.Label("Logs", m_panelLabelStyle);
+
+            float tempGap = (TempLogManager.PrevShowLogCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
+            if (tempGap > 0)
+            {
+                if (tempGap - m_upperPanelScroll.y <= BOX_ITEM_SIZE)
+                {
+                    // need auto scroll
+                    m_upperPanelScroll.y = TempLogManager.CurrentShowLogCount * m_boxItemStyle.fixedHeight - m_upperPanel.height;
+                }
+            }
 
             // draw all logs
             m_upperPanelScroll = GUILayout.BeginScrollView(m_upperPanelScroll);
             for (int i = 0; i < m_logItems.Count; i++)
             {
-                if (m_logTypeForUnshow.Contains(m_logItems[i].GetLogType))
-                {
-                    continue;
-                }
-
                 if (DrawLogBox(m_logItems[i], i % 2 == 0, m_logItems[i].IsSelected))
                 {
                     if (null != m_selectedLogItem)
@@ -197,7 +187,7 @@ namespace CustomLog
             float yPos = PanelGroupHeight * m_upperSizeRatio + MENU_BAR_HEIGHT + RESIZER_HEIGHT;
             m_lowerPanel = new Rect(0, yPos, this.position.width, PanelGroupHeight * (1.0f - m_upperSizeRatio));
             GUILayout.BeginArea(m_lowerPanel, m_panelStyle);
-            GUILayout.Label("Log Detail", m_panelLabelStyle);
+            // GUILayout.Label("Log Detail", m_panelLabelStyle);
 
             m_lowerPanelScroll = GUILayout.BeginScrollView(m_lowerPanelScroll);
 
@@ -274,7 +264,7 @@ namespace CustomLog
             EditorGUIUtility.AddCursorRect(m_resizer, MouseCursor.ResizeVertical);
         }
 
-        private bool DrawLogBox(in LogItem logItem, bool isOdd, bool isSelected)
+        private bool DrawLogBox(in TempLogItem logItem, bool isOdd, bool isSelected)
         {
             if (isSelected)
             {
@@ -321,8 +311,8 @@ namespace CustomLog
             bool result2 = true;
 
             GUILayout.BeginHorizontal();
-            result1 = GUILayout.Button(new GUIContent(m_boxIcon), m_boxIconStyle, GUILayout.Height(30.0f));
-            result2 = GUILayout.Button(new GUIContent($"[{ logItem.LogItme }] {logItem.LogMessage}"), m_boxItemStyle, GUILayout.ExpandWidth(true), GUILayout.Height(30.0f));
+            result1 = GUILayout.Button(new GUIContent(m_boxIcon), m_boxIconStyle, GUILayout.Height(BOX_ITEM_SIZE));
+            result2 = GUILayout.Button(new GUIContent($"[{ logItem.LogItme }] {logItem.LogMessage}"), m_boxItemStyle, GUILayout.ExpandWidth(true), GUILayout.Height(BOX_ITEM_SIZE));
             GUILayout.EndHorizontal();
 
             return result1 || result2;
@@ -361,11 +351,11 @@ namespace CustomLog
 
         private void GetAssets()
         {
-            m_panelLabelStyle = new GUIStyle();
-            m_panelLabelStyle.fixedHeight = 30.0f;
-            m_panelLabelStyle.richText = true;
-            m_panelLabelStyle.normal.textColor = Color.white;
-            m_panelLabelStyle.fontSize = 20;
+            // m_panelLabelStyle = new GUIStyle();
+            // m_panelLabelStyle.fixedHeight = 30.0f;
+            // m_panelLabelStyle.richText = true;
+            // m_panelLabelStyle.normal.textColor = Color.white;
+            // m_panelLabelStyle.fontSize = 20;
 
             m_infoIcon = EditorGUIUtility.Load("icons/console.infoicon.png") as Texture2D;
             m_infoIconSmall = EditorGUIUtility.Load("icons/console.infoicon.sml.png") as Texture2D;
@@ -411,35 +401,6 @@ namespace CustomLog
             m_labelButtonStyle.border = b;
         }
 
-        private void LogMessageReceived(string condition, string stackTrace, LogType type)
-        {
-            LogItem log = new LogItem(condition, stackTrace, type);
-            m_logItems.Add(log);
-            switch (type)
-            {
-                case LogType.Error:
-                    m_errorLogCount++;
-                    break;
-                case LogType.Assert:
-                    m_errorLogCount++;
-                    break;
-                case LogType.Warning:
-                    m_warningLogCount++;
-                    break;
-                case LogType.Log:
-                    m_normalLogCount++;
-                    break;
-                case LogType.Exception:
-                    m_errorLogCount++;
-                    break;
-                default:
-                    m_errorLogCount++;
-                    break;
-            }
-
-            Repaint();
-        }
-
         private void OnPlayModeChanged(PlayModeStateChange nextPlayMode)
         {
             switch (nextPlayMode)
@@ -463,14 +424,10 @@ namespace CustomLog
 
         private void GetData()
         {
-            // too dirty, to fix it next time
-            // make it works for now
-            {
-                TempLogManager.GetLogs(out m_logItems);
-                m_errorLogCount = TempLogManager.ErrorLogCount;
-                m_warningLogCount = TempLogManager.WarningLogCount;
-                m_normalLogCount = TempLogManager.NormalLogCount;
-            }
+            TempLogManager.GetLogs(out m_logItems);
+            m_errorLogCount = TempLogManager.ErrorLogCount;
+            m_warningLogCount = TempLogManager.WarningLogCount;
+            m_normalLogCount = TempLogManager.NormalLogCount;
         }
 
         private void WannaRepaint()
@@ -487,8 +444,7 @@ namespace CustomLog
 
             m_selectedLogItem = null;
 
-            m_logItems = new List<LogItem>();
-            m_logTypeForUnshow = new HashSet<LogType>();
+            m_logItems = new List<TempLogItem>();
 
             m_hasInited = true;
         }
