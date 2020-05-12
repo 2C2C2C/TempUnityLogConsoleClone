@@ -210,27 +210,32 @@ namespace CustomLog
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
                 {
                     // regex match
-                    Match matches = Regex.Match(logDetailMutiLine[i], @"\(at (.+)\)", RegexOptions.Multiline);
+                    Match matches = Regex.Match(logDetailMutiLine[i], @"\(at .*\.cs:[0-9]*\)", RegexOptions.Multiline);
 
                     if (matches.Success)
                     {
-                        while (matches.Success)
+                        int wa = 0;
+                        while (matches.Success && wa < 100)
                         {
-                            pathline = matches.Groups[1].Value;
-                            // find .cs file
+                            wa++;
+                            pathline = matches.Value;
                             if (pathline.Contains(tempCase))
                             {
+                                // TODO : CLEAN HERE!!!
                                 int splitIndex = pathline.LastIndexOf(":");
                                 path = pathline.Substring(0, splitIndex);
-                                line = Convert.ToInt32(pathline.Substring(splitIndex + 1));
+                                line = Convert.ToInt32(pathline.Substring(splitIndex + 1, pathline.Length - splitIndex - 2));
                                 string fullpath = Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("Assets"));
-                                fullpath = fullpath + path;
+                                // HACK : get rid of 'at '
+                                fullpath = fullpath + path.Substring(path.IndexOf(" ") + 1);
                                 splitwa = logDetailMutiLine[i].LastIndexOf("(");
                                 logDetailMutiLine[i] = logDetailMutiLine[i].Substring(0, splitwa);
+                                // splitwa = logDetailMutiLine[i].LastIndexOf("(");
 
                                 GUILayout.BeginHorizontal();
+                                // GUILayout.TextArea(string.Format(" (at : {0})\n", pathline), m_textAreaStyle);
                                 GUILayout.TextArea(string.Format(" (at : {0})\n", logDetailMutiLine[i]), m_textAreaStyle);
-                                if (GUILayout.Button(string.Format(" ( {0} )\n", pathline), m_labelButtonStyle))
+                                if (GUILayout.Button(string.Format("{0}\n", pathline), m_labelButtonStyle))
                                 {
                                     UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(fullpath.Replace('/', '\\'), line);
                                 }

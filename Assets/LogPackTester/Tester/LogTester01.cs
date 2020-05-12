@@ -1,6 +1,7 @@
 ﻿
 using CustomLog;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class LogTester01 : MonoBehaviour
@@ -45,4 +46,19 @@ public class LogTester01 : MonoBehaviour
     {
         int wa;
     }
+
+    [Button("test DICT KEY excp")]
+    public void CreateKeyExpc()
+    {
+        Dictionary<int, char> tempDict = new Dictionary<int, char>();
+
+        tempDict.Add(1, '1');
+        tempDict.Add(1, '1');
+    }
+
+    void OnEnable()
+    {
+        this.enabled = false;
+    }
+
 }
