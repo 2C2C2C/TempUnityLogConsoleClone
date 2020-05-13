@@ -135,7 +135,6 @@ namespace CustomLog
             tempwa = tempwa + 1;
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
             GUILayout.BeginArea(m_upperPanel, m_panelStyle);
-            // GUILayout.Label("Logs", m_panelLabelStyle);
 
             float tempGap = (TempLogManager.PrevShowLogCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
             if (tempGap > 0)
@@ -187,7 +186,6 @@ namespace CustomLog
             float yPos = PanelGroupHeight * m_upperSizeRatio + MENU_BAR_HEIGHT + RESIZER_HEIGHT;
             m_lowerPanel = new Rect(0, yPos, this.position.width, PanelGroupHeight * (1.0f - m_upperSizeRatio));
             GUILayout.BeginArea(m_lowerPanel, m_panelStyle);
-            // GUILayout.Label("Log Detail", m_panelLabelStyle);
 
             m_lowerPanelScroll = GUILayout.BeginScrollView(m_lowerPanelScroll);
 
@@ -356,12 +354,6 @@ namespace CustomLog
 
         private void GetAssets()
         {
-            // m_panelLabelStyle = new GUIStyle();
-            // m_panelLabelStyle.fixedHeight = 30.0f;
-            // m_panelLabelStyle.richText = true;
-            // m_panelLabelStyle.normal.textColor = Color.white;
-            // m_panelLabelStyle.fontSize = 20;
-
             m_infoIcon = EditorGUIUtility.Load("icons/console.infoicon.png") as Texture2D;
             m_infoIconSmall = EditorGUIUtility.Load("icons/console.infoicon.sml.png") as Texture2D;
             m_warningIcon = EditorGUIUtility.Load("icons/console.warnicon.png") as Texture2D;

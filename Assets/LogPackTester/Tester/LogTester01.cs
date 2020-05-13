@@ -47,13 +47,32 @@ public class LogTester01 : MonoBehaviour
         int wa;
     }
 
-    [Button("test DICT KEY excp")]
+    [Button("test DICT KEY expt")]
     public void CreateKeyExpc()
     {
         Dictionary<int, char> tempDict = new Dictionary<int, char>();
 
         tempDict.Add(1, '1');
         tempDict.Add(1, '1');
+    }
+
+    [Button("test null ref expt")]
+    public void CreateNullRefExpt()
+    {
+        GameObject nullGo = null;
+        nullGo.SetActive(false);
+    }
+
+    public string[] m_stackTraceTemp = null;
+    public int m_stackTestCase = 0;
+    [Button("test stack trace prase")]
+    public void TestStackTracePrase()
+    {
+        if (null == m_stackTraceTemp || 0 == m_stackTraceTemp.Length)
+            return;
+
+        m_stackTestCase = m_stackTestCase % m_stackTraceTemp.Length;
+        TempConsoleHelper.GetTopFileOfCallStack(m_stackTraceTemp[m_stackTestCase], out string result, out int line);
     }
 
     void OnEnable()

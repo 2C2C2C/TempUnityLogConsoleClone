@@ -276,6 +276,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_logType: 3
   m_logMsg: "this \n is \n magic\n to \n test"
+  m_stackTraceTemp:
+  - Assets\LogPackTester\Tester\LogTester01.cs(47,13)
+  - LogTester01.CreateNullRefExpt () (at Assets/LogPackTester/Tester/LogTester01.cs:63)
+  m_stackTestCase: 1
 --- !u!1 &281619225
 GameObject:
   m_ObjectHideFlags: 0

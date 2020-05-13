@@ -15,7 +15,8 @@ namespace CustomLog
     {
         public static bool HasInited { get; private set; }
 
-        private static readonly string MANAGER_TAG = "[LogManager]";
+        public static readonly string MANAGER_TAG = "[LogManager]";
+        public static readonly string MANAGER_NAME = "LogManager";
 
         public static int NormalLogCount { get; private set; }
         public static int WarningLogCount { get; private set; }
@@ -307,8 +308,6 @@ namespace CustomLog
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
             EditorApplication.quitting += OnEditorQuitting;
 
-            // to capture the logs already in Unitu Console
-            // enable all log for default console cuz we need to capture all log from it.
             GetLogsFromUnityConsole(LogType.Log);
             GetLogsFromUnityConsole(LogType.Warning);
             GetLogsFromUnityConsole(LogType.Error);
@@ -341,7 +340,7 @@ namespace CustomLog
                     break;
             }
 
-            // to capture the logs already in Unitu Console
+            // to capture the logs already in Unity Console
             // enable all log for default console cuz we need to capture all log from it.
             var setall = UnityConsoleWindow.GetMethod("SetFlag", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
             setall.Invoke(null, new object[] { LOG_FLAG, false });
@@ -599,6 +598,65 @@ namespace CustomLog
             }
             return result;
         }
+
+
+        private static string[] m_mutilineStackTrace = null;
+        private static string m_tempStackTrace = null;
+
+        // TODO : why shit PC OS has these 2 kinda of shit
+        // to match "Assets\Plugins\LogPack\TempLogManager.cs(620,25)"
+        public static readonly string REGEX_MATCH_PAT_1 = @"Assets\\.*cs\([0-9,]*\)";
+
+        // to match "at Assets/Utils/Editor/BaseEditor.cs:28"
+        public static readonly string REGEX_MATCH_PAT_2 = @"Assets/.*cs:[0-9]*";
+        private static Match m_mathObject = null;
+        public static void GetTopFileOfCallStack(in string callstack, out string filePath, out int lineNum)
+        {
+            filePath = string.Empty;
+            lineNum = 0;
+            m_tempStackTrace = string.Copy(callstack);
+
+            m_mutilineStackTrace = callstack.Split('\n');
+
+            string tempLineStr = null;
+
+            for (int i = 0; i < m_mutilineStackTrace.Length; i++)
+            {
+                m_mathObject = Regex.Match(m_mutilineStackTrace[i], REGEX_MATCH_PAT_1, RegexOptions.IgnoreCase);
+
+                if (m_mathObject.Success)
+                {
+                    // value like Assets\Plugins\LogPack\TempLogManager.cs(620,25)
+                    if (m_mathObject.Value.Contains(TempLogManager.MANAGER_NAME))
+                        continue;
+
+                    filePath = m_mathObject.Value.Substring(0, m_mathObject.Value.IndexOf('('));
+                    lineNum = m_mathObject.Value.IndexOf(',') - m_mathObject.Value.IndexOf('(') - 1;
+                    tempLineStr = m_mathObject.Value.Substring(m_mathObject.Value.IndexOf('(') + 1, lineNum);
+                    if (!Int32.TryParse(tempLineStr, out lineNum))
+                        lineNum = 1;
+                    break;
+                }
+
+                m_mathObject = Regex.Match(m_mutilineStackTrace[i], REGEX_MATCH_PAT_2, RegexOptions.IgnoreCase);
+                if (m_mathObject.Success)
+                {
+                    // value like at Assets/Utils/Editor/BaseEditor.cs:28
+                    if (m_mathObject.Value.Contains(TempLogManager.MANAGER_NAME))
+                        continue;
+
+                    filePath = m_mathObject.Value.Substring(0, m_mathObject.Value.IndexOf(':'));
+                    tempLineStr = m_mathObject.Value.Substring(m_mathObject.Value.IndexOf(':') + 1);
+                    filePath = filePath.Replace('/', '\\');
+                    if (!Int32.TryParse(tempLineStr, out lineNum))
+                        lineNum = 1;
+
+                    break;
+                }
+            }
+
+        }
+
     }
 #endif
 
