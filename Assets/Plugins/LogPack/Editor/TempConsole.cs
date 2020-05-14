@@ -72,7 +72,7 @@ namespace CustomLog
                 return;
             }
 
-            if (Application.isEditor && !TempConsoleHelper.TryGoToCode(m_selectedLogItem))
+            if (Application.isEditor && !TempConsoleHelper.TryGoTopCalledCode(m_selectedLogItem))
             {
                 Debug.LogError("Temp Console Error : code jump error");
             }
