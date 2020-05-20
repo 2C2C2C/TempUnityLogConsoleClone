@@ -446,6 +446,8 @@ namespace CustomLog
             m_hasInited = true;
         }
 
+        #region life circle
+
         private void Awake()
         {
             m_upperSizeRatio = 0.5f;
@@ -457,14 +459,14 @@ namespace CustomLog
             GetAssets();
 
             ContainerInit();
-
+            TempLogManager.OnLogsFreshed += WannaRepaint;
             // now should get logs data from manager
-            TempLogManager.OnLogItemCreated += WannaRepaint;
-            {
-                TempLogManager.GetLogs(out m_logItems);
-            }
+            // TempLogManager.OnLogItemCreated += WannaRepaint;
+            // {
+            //     TempLogManager.GetLogs(out m_logItems);
+            // }
 
-            WannaRepaint();
+            //WannaRepaint();
         }
 
         private void OnGUI()
@@ -473,7 +475,7 @@ namespace CustomLog
                 return;
 
             // get data first
-            GetData();
+            //GetData();
 
             DrawMenuUpperBar();
             DrawUpperPanel();
@@ -490,8 +492,10 @@ namespace CustomLog
         private void OnDisable()
         {
             m_logItems.Clear();
-            TempLogManager.OnLogItemCreated += WannaRepaint;
+            // TempLogManager.OnLogItemCreated -= WannaRepaint;
         }
+
+        #endregion
 
     }
 

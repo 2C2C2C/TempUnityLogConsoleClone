@@ -22,10 +22,10 @@ namespace CustomLog
         public static int WarningLogCount { get; private set; }
         public static int ErrorLogCount { get; private set; }
 
-        private static StreamWriter m_logFileWriter = null;
+        private static StreamWriter _logFileWriter = null;
         private static readonly string LOG_FILE_NAME = "LogFile";
 
-        private static string[] m_logCategoryStrs = null;
+        private static string[] _logCategoryStrs = null;
 
 #if UNITY_EDITOR
 
@@ -36,7 +36,7 @@ namespace CustomLog
 
         public static readonly Type SelfType = typeof(TempLogManager);
 
-        private static List<TempLogItem> m_logItems = null;
+        private static List<TempLogItem> _logItems = null;
         public static TempLogItem SelectedItem { get; set; }
 
         public static bool IsClearOnPlay = false;
@@ -48,26 +48,33 @@ namespace CustomLog
 
         public static event Action OnLogItemCreated;
 
+        public static event Action OnLogsFreshed;
+
+        private static readonly int REFRESH_INTERVAL = 20;
+        private static readonly int REFRESH_ROLLBACK = 5;
+        private static int _refreshTime = 0;
+        private static bool _needFreshed = false;
+
         #region to get unity console and logs
 
         public static readonly int LOG_FLAG = 1 << 7;
         public static readonly int WARNING_FLAG = 1 << 8;
         public static readonly int ERROR_FLAG = 1 << 9;
-        private static int m_logFlags = 0;
+        private static int _logFlags = 0;
 
-        private static Type m_entriesType = null;
-        private static Type m_entryType = null;
-        private static Type m_consoleWindow = null;
+        private static Type _entriesType = null;
+        private static Type _entryType = null;
+        private static Type _consoleWindow = null;
 
         private static Type UnityConsoleWindow
         {
             get
             {
-                if (null == m_consoleWindow)
+                if (null == _consoleWindow)
                 {
-                    m_consoleWindow = System.Type.GetType("UnityEditor.ConsoleWindow, UnityEditor.dll");
+                    _consoleWindow = System.Type.GetType("UnityEditor.ConsoleWindow, UnityEditor.dll");
                 }
-                return m_consoleWindow;
+                return _consoleWindow;
             }
         }
 
@@ -75,11 +82,11 @@ namespace CustomLog
         {
             get
             {
-                if (null == m_entryType)
+                if (null == _entryType)
                 {
-                    m_entryType = System.Type.GetType("UnityEditor.LogEntry, UnityEditor.dll");
+                    _entryType = System.Type.GetType("UnityEditor.LogEntry, UnityEditor.dll");
                 }
-                return m_entryType;
+                return _entryType;
             }
         }
 
@@ -87,17 +94,20 @@ namespace CustomLog
         {
             get
             {
-                if (null == m_entriesType)
+                if (null == _entriesType)
                 {
-                    m_entriesType = System.Type.GetType("UnityEditor.LogEntries,UnityEditor.dll");
+                    _entriesType = System.Type.GetType("UnityEditor.LogEntries,UnityEditor.dll");
                 }
-                return m_entriesType;
+                return _entriesType;
             }
         }
 
-        public static int GetUnityLogCount()
+        public static int UnityLogCount
         {
-            return (int)UnityLogEntries.GetMethod("GetCount").Invoke(null, null);
+            get
+            {
+                return (int)UnityLogEntries.GetMethod("GetCount").Invoke(null, null);
+            }
         }
 
         public static void ClearUnityLogConsole()
@@ -127,7 +137,7 @@ namespace CustomLog
                 FreshFileWriter();
             }
 
-            m_logFlags = LOG_FLAG | WARNING_FLAG | ERROR_FLAG;
+            _logFlags = LOG_FLAG | WARNING_FLAG | ERROR_FLAG;
 
             NormalLogCount = 0;
             WarningLogCount = 0;
@@ -135,6 +145,7 @@ namespace CustomLog
 
 #if UNITY_EDITOR
             InitLogmanagerForEditor();
+            EditorApplication.update += OnEditorUpdate;
 #endif
 
             HasInited = true;
@@ -226,8 +237,7 @@ namespace CustomLog
 
         #region methods for editor
 
-#if UNITY_EDITOR
-        // here are some methods only used in editor
+#if UNITY_EDITOR // here are some methods only used in editor
 
         public static void ClearLogs()
         {
@@ -235,8 +245,9 @@ namespace CustomLog
             NormalLogCount = 0;
             WarningLogCount = 0;
             ErrorLogCount = 0;
-            m_logItems.Clear();
+            _logItems.Clear();
             ClearUnityLogConsole();
+            _needFreshed = true;
         }
 
         public static void GetLogs(out List<TempLogItem> logs)
@@ -245,25 +256,25 @@ namespace CustomLog
             CurrentShowLogCount = 0;
             // too bad
             logs = new List<TempLogItem>();
-            for (int i = 0; i < m_logItems.Count; i++)
+            for (int i = 0; i < _logItems.Count; i++)
             {
-                if (m_logItems[i].GetLogTypeFlag == (m_logItems[i].GetLogTypeFlag & m_logFlags))
+                if (_logItems[i].GetLogTypeFlag == (_logItems[i].GetLogTypeFlag & _logFlags))
                 {
                     CurrentShowLogCount++;
-                    logs.Add(m_logItems[i]);
+                    logs.Add(_logItems[i]);
                 }
             }
         }
 
         public static void SetShowingLogFlag(bool enableLog, bool enableWarning, bool enableError)
         {
-            m_logFlags = 0;
+            _logFlags = 0;
             if (enableLog)
-                m_logFlags = m_logFlags | LOG_FLAG;
+                _logFlags = _logFlags | LOG_FLAG;
             if (enableWarning)
-                m_logFlags = m_logFlags | WARNING_FLAG;
+                _logFlags = _logFlags | WARNING_FLAG;
             if (enableError)
-                m_logFlags = m_logFlags | ERROR_FLAG;
+                _logFlags = _logFlags | ERROR_FLAG;
         }
 
         private static void OnPlayModeChanged(PlayModeStateChange playMode)
@@ -300,7 +311,7 @@ namespace CustomLog
 
         private static void InitLogmanagerForEditor()
         {
-            m_logItems = new List<TempLogItem>();
+            _logItems = new List<TempLogItem>();
 
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.quitting -= OnEditorQuitting;
@@ -354,7 +365,7 @@ namespace CustomLog
             var start = UnityLogEntries.GetMethod("StartGettingEntries", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
             start.Invoke(null, null);
 
-            int count = GetUnityLogCount();
+            int count = UnityLogCount;
             TempLogItem logItem = null;
             for (int i = 0; i < count; i++)
             {
@@ -367,7 +378,7 @@ namespace CustomLog
                     string condition = (string)field.GetValue(e);
 
                     logItem = new TempLogItem(condition, string.Empty, logType, enableLogFlag);
-                    m_logItems.Add(logItem);
+                    _logItems.Add(logItem);
                 }
 
             }
@@ -378,7 +389,25 @@ namespace CustomLog
             setall.Invoke(null, new object[] { WARNING_FLAG, true });
             setall.Invoke(null, new object[] { ERROR_FLAG, true });
         }
+
+        private static void OnEditorUpdate()
+        {
+            _refreshTime++;
+            if (_refreshTime >= REFRESH_INTERVAL)
+            {
+                if (_needFreshed)
+                {
+                    _refreshTime = 0;
+                    OnLogsFreshed?.Invoke();
+                    _needFreshed = false;
+                }
+                else
+                    _refreshTime -= REFRESH_ROLLBACK;
+            }
+        }
+
 #endif
+
         #endregion
 
         private static void LogMessageReceived(string message, string stackTrace, LogType type)
@@ -429,8 +458,9 @@ namespace CustomLog
             if (null != log)
             {
 #if UNITY_EDITOR
-                m_logItems.Add(log);
+                _logItems.Add(log);
                 OnLogItemCreated?.Invoke();
+                _needFreshed = true;
 #endif
                 WriteLogToFile(log);
             }
@@ -438,27 +468,27 @@ namespace CustomLog
 
         private static void FreshFileWriter()
         {
-            if (null != m_logFileWriter)
+            if (null != _logFileWriter)
                 CloseFileWriter();
 
             string path = null;
             path = $"{Application.persistentDataPath}/{LOG_FILE_NAME}_{System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}.txt";
-            m_logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
-            m_logFileWriter.WriteLine($"Game launch");
-            m_logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
-            m_logFileWriter.WriteLine($"----------------------------------------\n");
+            _logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
+            _logFileWriter.WriteLine($"Game launch");
+            _logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
+            _logFileWriter.WriteLine($"----------------------------------------\n");
         }
 
         private static void CloseFileWriter()
         {
-            if (null != m_logFileWriter)
+            if (null != _logFileWriter)
             {
-                m_logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}");
-                m_logFileWriter.WriteLine($"Result:\n log : {NormalLogCount}\n warning : {WarningLogCount}\n error : {ErrorLogCount}\n");
-                m_logFileWriter.Dispose();
-                m_logFileWriter.Close();
+                _logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}");
+                _logFileWriter.WriteLine($"Result:\n log : {NormalLogCount}\n warning : {WarningLogCount}\n error : {ErrorLogCount}\n");
+                _logFileWriter.Dispose();
+                _logFileWriter.Close();
             }
-            m_logFileWriter = null;
+            _logFileWriter = null;
         }
 
         private static void WriteLogToFile(in TempLogItem logItem)
@@ -472,14 +502,14 @@ namespace CustomLog
 
             if (Application.isPlaying)
             {
-                if (m_logFileWriter == null)
+                if (_logFileWriter == null)
                 {
                     FreshFileWriter();
                 }
 
                 // write log to file
-                m_logFileWriter.WriteLine($"{logItem.GetLogType}\n{logItem.LogItme}\n{logItem.LogMessage}\n\n{logItem.LogStackTrace}");
-                m_logFileWriter.WriteLine("-----------------------------\n");
+                _logFileWriter.WriteLine($"{logItem.GetLogType}\n{logItem.LogItme}\n{logItem.LogMessage}\n\n{logItem.LogStackTrace}");
+                _logFileWriter.WriteLine("-----------------------------\n");
             }
         }
 

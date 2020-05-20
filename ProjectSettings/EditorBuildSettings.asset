@@ -6,6 +6,6 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/LogPackTester/01.unity
+    path: Assets/LogPack/LogPackTester/01.unity
     guid: 95f9abf368ec9f7459b1c247c951c3a5
   m_configObjects: {}
