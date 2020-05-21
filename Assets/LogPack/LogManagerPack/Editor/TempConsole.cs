@@ -10,6 +10,8 @@ namespace CustomLog
     public class TempConsole : EditorWindow
     {
         private bool m_hasInited = false;
+        private bool m_needRefresh = false;
+        private bool m_getDataUpdated = false;
         private Rect m_menuUpperBar = default;
         private Rect m_upperPanel = default;
         private Rect m_lowerPanel = default;
@@ -27,6 +29,7 @@ namespace CustomLog
         private bool m_isClearOnPlay = false;
         private bool m_isClearOnBuild = false;
         private bool m_isErrorPause = false;
+        private bool m_writeFileInEditor = false;
         private bool m_isShowLog = true;
         private bool m_isShowWarning = true;
         private bool m_isShowError = true;
@@ -96,7 +99,7 @@ namespace CustomLog
 
         #region draw methods
 
-        private void DrawMenuUpperBar()
+        private void DrawMenuBar()
         {
             m_menuUpperBar = new Rect(0.0f, 0.0f, this.position.width, MENU_BAR_HEIGHT);
 
@@ -114,14 +117,30 @@ namespace CustomLog
             m_isClearOnBuild = GUILayout.Toggle(m_isClearOnBuild, new GUIContent("Clear On Build"), EditorStyles.toolbarButton, GUILayout.Width(85.0f));
             m_isErrorPause = GUILayout.Toggle(m_isErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
 
+
+            m_writeFileInEditor = GUILayout.Toggle(m_writeFileInEditor, new GUIContent("Write Log File"), EditorStyles.toolbarButton, GUILayout.Width(120.0f));
+            TempLogManager.WriteFileInEditor = m_writeFileInEditor;
+
             GUILayout.FlexibleSpace();
 
             m_normalLogCount = Mathf.Clamp(m_normalLogCount, 0, 100);
             m_warningLogCount = Mathf.Clamp(m_warningLogCount, 0, 100);
             m_errorLogCount = Mathf.Clamp(m_errorLogCount, 0, 100);
+
+            int prevShowFlags = 0, curShowFlags = 0;
+            prevShowFlags += m_isShowLog ? 1 : 0;
+            prevShowFlags += m_isShowWarning ? 1 : 0;
+            prevShowFlags += m_isShowError ? 1 : 0;
+
             m_isShowLog = GUILayout.Toggle(m_isShowLog, new GUIContent(TempConsoleHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(SMALL_ICON_WIDTH));
             m_isShowWarning = GUILayout.Toggle(m_isShowWarning, new GUIContent(TempConsoleHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(SMALL_ICON_WIDTH));
             m_isShowError = GUILayout.Toggle(m_isShowError, new GUIContent(TempConsoleHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(SMALL_ICON_WIDTH));
+
+            curShowFlags += m_isShowLog ? 1 : 0;
+            curShowFlags += m_isShowWarning ? 1 : 0;
+            curShowFlags += m_isShowError ? 1 : 0;
+
+            m_needRefresh = (prevShowFlags != curShowFlags);
 
             TempLogManager.SetShowingLogFlag(m_isShowLog, m_isShowWarning, m_isShowError);
 
@@ -131,23 +150,27 @@ namespace CustomLog
 
         private void DrawUpperPanel()
         {
-            float tempwa = PanelGroupHeight;
-            tempwa = tempwa + 1;
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
             GUILayout.BeginArea(m_upperPanel, m_panelStyle);
 
-            float tempGap = (TempLogManager.PrevShowLogCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
-            if (tempGap > 0)
+            float prevY = m_upperPanelScroll.y;
+            if (m_getDataUpdated)
             {
-                if (tempGap - m_upperPanelScroll.y <= BOX_ITEM_SIZE)
+                float tempGap = (TempLogManager.PrevShowLogCount * BOX_ITEM_SIZE) - m_upperPanel.height;
+                if (tempGap > 0)
                 {
-                    // need auto scroll
-                    m_upperPanelScroll.y = TempLogManager.CurrentShowLogCount * m_boxItemStyle.fixedHeight - m_upperPanel.height;
+                    if (tempGap - m_upperPanelScroll.y <= BOX_ITEM_SIZE)
+                    {
+                        // need auto scroll
+                        m_upperPanelScroll.y = TempLogManager.CurrentShowLogCount * BOX_ITEM_SIZE - m_upperPanel.height;
+                    }
                 }
             }
 
-            // draw all logs
             m_upperPanelScroll = GUILayout.BeginScrollView(m_upperPanelScroll);
+            m_needRefresh = m_getDataUpdated || Mathf.Approximately(m_upperPanelScroll.y, prevY);
+            m_getDataUpdated = false;
+            // draw all logs
             for (int i = 0; i < m_logItems.Count; i++)
             {
                 if (DrawLogBox(m_logItems[i], i % 2 == 0, m_logItems[i].IsSelected))
@@ -375,7 +398,7 @@ namespace CustomLog
             m_boxItemStyle = new GUIStyle();
             m_boxItemStyle.clipping = TextClipping.Clip;
             m_boxItemStyle.normal.textColor = new Color(0.7f, 0.7f, 0.7f); // ?
-            m_boxItemStyle.fixedHeight = 30.0f;
+            m_boxItemStyle.fixedHeight = BOX_ITEM_SIZE;
 
             m_boxBgOdd = EditorGUIUtility.Load("builtin skins/darkskin/images/cn entrybackodd.png") as Texture2D;
             m_boxBgEven = EditorGUIUtility.Load("builtin skins/darkskin/images/cnentrybackeven.png") as Texture2D;
@@ -425,6 +448,7 @@ namespace CustomLog
             m_errorLogCount = TempLogManager.ErrorLogCount;
             m_warningLogCount = TempLogManager.WarningLogCount;
             m_normalLogCount = TempLogManager.NormalLogCount;
+            m_getDataUpdated = true;
         }
 
         private void WannaRepaint()
@@ -460,13 +484,7 @@ namespace CustomLog
 
             ContainerInit();
             TempLogManager.OnLogsFreshed += WannaRepaint;
-            // now should get logs data from manager
-            // TempLogManager.OnLogItemCreated += WannaRepaint;
-            // {
-            //     TempLogManager.GetLogs(out m_logItems);
-            // }
-
-            //WannaRepaint();
+            WannaRepaint();
         }
 
         private void OnGUI()
@@ -474,25 +492,28 @@ namespace CustomLog
             if (!m_hasInited)
                 return;
 
-            // get data first
-            //GetData();
-
-            DrawMenuUpperBar();
+            DrawMenuBar();
             DrawUpperPanel();
             DrawLowerPanel();
             DrawResizer();
 
             ProcessEvents(Event.current);
-            if (GUI.changed)
+
+            if (m_needRefresh)
             {
                 Repaint();
+                m_needRefresh = false;
             }
+
+            // if (GUI.changed)
+            // {
+            //     Repaint();
+            // }
         }
 
         private void OnDisable()
         {
             m_logItems.Clear();
-            // TempLogManager.OnLogItemCreated -= WannaRepaint;
         }
 
         #endregion

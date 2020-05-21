@@ -42,6 +42,7 @@ namespace CustomLog
         public static bool IsClearOnPlay = false;
         public static bool IsClearOnBuild = false;
         public static bool IsErrorPause = false;
+        public static bool WriteFileInEditor = false;
         public static bool IsShowLog = true;
         public static bool IsShowWarning = true;
         public static bool IsShowError = true;
@@ -146,6 +147,7 @@ namespace CustomLog
 #if UNITY_EDITOR
             InitLogmanagerForEditor();
             EditorApplication.update += OnEditorUpdate;
+            WriteFileInEditor = false;
 #endif
 
             HasInited = true;
@@ -284,7 +286,7 @@ namespace CustomLog
                 ClearLogs();
             }
 
-            if (PlayModeStateChange.EnteredPlayMode == playMode)
+            if (PlayModeStateChange.EnteredPlayMode == playMode && !WriteFileInEditor)
             {
                 FreshFileWriter();
             }
