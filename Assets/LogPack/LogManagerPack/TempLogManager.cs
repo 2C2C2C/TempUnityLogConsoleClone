@@ -474,7 +474,7 @@ namespace CustomLog
                 CloseFileWriter();
 
             string path = null;
-            path = $"{Application.persistentDataPath}/{LOG_FILE_NAME}_{System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}.txt";
+            path = $"{Application.persistentDataPath}/{LOG_FILE_NAME}_{System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}.txt";
             _logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
             _logFileWriter.WriteLine($"Game launch");
             _logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
@@ -485,7 +485,7 @@ namespace CustomLog
         {
             if (null != _logFileWriter)
             {
-                _logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-mm-dd_HH-mm-ss")}");
+                _logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}");
                 _logFileWriter.WriteLine($"Result:\n log : {NormalLogCount}\n warning : {WarningLogCount}\n error : {ErrorLogCount}\n");
                 _logFileWriter.Dispose();
                 _logFileWriter.Close();
