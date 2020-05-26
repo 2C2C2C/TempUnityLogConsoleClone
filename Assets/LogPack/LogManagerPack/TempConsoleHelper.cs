@@ -57,7 +57,7 @@ namespace CustomLog
         private static Match m_mathObject = null;
         public static void GetTopFileOfCallStack(in string callstack, out string filePath, out int lineNum)
         {
-            filePath = string.Empty;
+            filePath = null;
             lineNum = 0;
             m_tempStackTrace = string.Copy(callstack);
 
@@ -115,6 +115,46 @@ namespace CustomLog
             GetTopFileOfCallStack(stackTrace, out string filePath, out int lineNum);
             result = UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(filePath, lineNum);
             return result;
+        }
+
+        static readonly string REGEX_MATCH_PAT_3 = @"\(at .*\.cs:[0-9]*\)";
+        public static bool TryGetFilePathFromStr(in string message, out string filePath, out int lineNum)
+        {
+            bool result = false;
+            string tempStr = message;
+            filePath = null;
+            lineNum = 0;
+
+            Match matche = Regex.Match(message, REGEX_MATCH_PAT_3, RegexOptions.IgnoreCase);
+            result = matche.Success;
+            if (result)
+            {
+                // HACK : get rid of "(at )"
+                tempStr = matche.Value.Substring(4, matche.Value.Length - 5);
+                int splitIndex = tempStr.LastIndexOf(":");
+                filePath = tempStr.Substring(0, splitIndex);
+                string fktmp = tempStr.Substring(splitIndex + 1, tempStr.Length - splitIndex - 2);
+                lineNum = Convert.ToInt32(tempStr.Substring(splitIndex + 1, tempStr.Length - splitIndex - 2));
+                filePath = Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("Assets")) + filePath;
+            }
+            return result;
+        }
+
+        public static void CreateLogManagerSettingFile()
+        {
+            // TODO : to create a TempLogManagerData
+            //
+        }
+
+        public static void TryGetLogManagerSettingPack(out TempLogManagerSettingPack pack)
+        {
+            pack = null;
+            // TODO : get data from setting
+        }
+
+        public static void LogManagerSettingPack(TempLogManagerSettingPack pack)
+        {
+            // TODO : set data to setting
         }
 
     }

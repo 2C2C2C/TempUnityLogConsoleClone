@@ -25,16 +25,12 @@ namespace CustomLog
         private static StreamWriter _logFileWriter = null;
         private static readonly string LOG_FILE_NAME = "LogFile";
 
-        private static string[] _logCategoryStrs = null;
-
 #if UNITY_EDITOR
 
         #region variables for editor
 
         public static int PrevShowLogCount { get; private set; }
         public static int CurrentShowLogCount { get; private set; }
-
-        public static readonly Type SelfType = typeof(TempLogManager);
 
         private static List<TempLogItem> _logItems = null;
         public static TempLogItem SelectedItem { get; set; }
@@ -48,7 +44,6 @@ namespace CustomLog
         public static bool IsShowError = true;
 
         public static event Action OnLogItemCreated;
-
         public static event Action OnLogsFreshed;
 
         private static readonly int REFRESH_INTERVAL = 20;
@@ -148,8 +143,18 @@ namespace CustomLog
             InitLogmanagerForEditor();
             EditorApplication.update += OnEditorUpdate;
             WriteFileInEditor = false;
+            if (null != TempLogManagerData.Instance)
+            {
+                // load data
+                Debug.Log("find log manager setting");
+            }
+            else
+            {
+                Debug.Log("not find log manager setting");
+                // try create it ?
+            }
 #endif
-
+            Debug.Log("LogManager inited");
             HasInited = true;
         }
 

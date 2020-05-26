@@ -200,7 +200,6 @@ namespace CustomLog
                 }
             }
             GUILayout.EndScrollView();
-
             GUILayout.EndArea();
         }
 
@@ -216,8 +215,7 @@ namespace CustomLog
             string[] logDetailMutiLine = null;
 
             // TODO : code clean here
-            string pathline = "";
-            string tempCase = ".cs:";
+            string tempStr = "";
             string path = string.Empty;
             int line = 0;
             int splitwa = 0;
@@ -230,52 +228,29 @@ namespace CustomLog
                 logDetailMutiLine = logDetail.Split('\n');
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
                 {
-                    // regex match
-                    Match matches = Regex.Match(logDetailMutiLine[i], @"\(at .*\.cs:[0-9]*\)", RegexOptions.Multiline);
-
-                    if (matches.Success)
+                    tempStr = logDetailMutiLine[i];
+                    if (!TempConsoleHelper.TryGetFilePathFromStr(tempStr, out path, out line))
                     {
-                        int wa = 0;
-                        while (matches.Success && wa < 100)
-                        {
-                            wa++;
-                            pathline = matches.Value;
-                            if (pathline.Contains(tempCase))
-                            {
-                                // TODO : CLEAN HERE!!!
-                                int splitIndex = pathline.LastIndexOf(":");
-                                path = pathline.Substring(0, splitIndex);
-                                line = Convert.ToInt32(pathline.Substring(splitIndex + 1, pathline.Length - splitIndex - 2));
-                                string fullpath = Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("Assets"));
-                                // HACK : get rid of 'at '
-                                fullpath = fullpath + path.Substring(path.IndexOf(" ") + 1);
-                                splitwa = logDetailMutiLine[i].LastIndexOf("(");
-                                logDetailMutiLine[i] = logDetailMutiLine[i].Substring(0, splitwa);
-                                // splitwa = logDetailMutiLine[i].LastIndexOf("(");
-
-                                GUILayout.BeginHorizontal();
-                                // GUILayout.TextArea(string.Format(" (at : {0})\n", pathline), m_textAreaStyle);
-                                GUILayout.TextArea(string.Format(" (at : {0})\n", logDetailMutiLine[i]), m_textAreaStyle);
-                                if (GUILayout.Button(string.Format("{0}\n", pathline), m_labelButtonStyle))
-                                {
-                                    UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(fullpath.Replace('/', '\\'), line);
-                                }
-                                GUILayout.FlexibleSpace();
-                                GUILayout.EndHorizontal();
-                                break;
-                            }
-                        }
+                        GUILayout.TextArea(tempStr, m_textAreaStyle);
                     }
                     else
                     {
-                        GUILayout.TextArea(logDetailMutiLine[i], m_textAreaStyle);
-                    }
+                        splitwa = tempStr.LastIndexOf("(");
+                        tempStr = tempStr.Substring(0, splitwa);
 
+                        GUILayout.BeginHorizontal();
+                        GUILayout.TextArea(string.Format(" (at : {0})\n", tempStr), m_textAreaStyle);
+
+                        if (GUILayout.Button(string.Format(" (at : {0})", path), m_labelButtonStyle))
+                            UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path, line);
+
+                        GUILayout.FlexibleSpace();
+                        GUILayout.EndHorizontal();
+                    }
                 }
             }
 
             GUILayout.EndScrollView();
-
             GUILayout.EndArea();
         }
 
@@ -504,11 +479,6 @@ namespace CustomLog
                 Repaint();
                 m_needRefresh = false;
             }
-
-            // if (GUI.changed)
-            // {
-            //     Repaint();
-            // }
         }
 
         private void OnDisable()
