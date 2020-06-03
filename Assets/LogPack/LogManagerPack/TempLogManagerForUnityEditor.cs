@@ -1,0 +1,362 @@
+﻿#if UNITY_EDITOR
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEditor;
+using UnityEditor.Compilation;
+using UnityEngine;
+
+namespace CustomLog
+{
+    public static class LogManagerForUnityEditor
+    {
+        public static int InfoLogCount { get; private set; }
+        public static int WarningLogCount { get; private set; }
+        public static int ErrorLogCount { get; private set; }
+
+        private static List<TempLogItem> m_logItems = null;
+        private static TempLogItem m_selectedItem = null;
+
+        public static bool IsClearOnPlay { get; set; }
+        public static bool IsErrorPause { get; set; }
+
+        public static bool IsShowLog { get; set; }
+        public static bool IsShowWarning { get; set; }
+        public static bool IsShowError { get; set; }
+
+        private static TempLogManagerSettingPack m_currentPack = null;
+        public static TempLogManagerSettingPack GetInitPack() => m_currentPack;
+
+        private static bool m_writeLogFileInEditor = false;
+
+        private static readonly int LOG_UPDATE_INTERVAL = 15;
+        private static readonly int LOG_UPDATE_ROLLBACK = 5;
+        private static int m_updateTime = 0;
+        private static bool m_needRefresh = false;
+        private static bool m_isCompiling = false;
+
+        public static event Action OnLogsUpdated;
+
+        #region to get unity console and logs
+
+        static readonly int LOG_FLAG = 1 << 7;
+        static readonly int WARNING_FLAG = 1 << 8;
+        static readonly int ERROR_FLAG = 1 << 9;
+
+        static Type m_entriesType = null;
+        static Type m_entryType = null;
+        static Type m_consoleWindow = null;
+
+        static Type UnityConsoleWindow
+        {
+            get
+            {
+                if (null == m_consoleWindow)
+                {
+                    m_consoleWindow = System.Type.GetType("UnityEditor.ConsoleWindow, UnityEditor.dll");
+                }
+                return m_consoleWindow;
+            }
+        }
+
+        static Type UnityLogEntry
+        {
+            get
+            {
+                if (null == m_entryType)
+                {
+                    m_entryType = System.Type.GetType("UnityEditor.LogEntry, UnityEditor.dll");
+                }
+                return m_entryType;
+            }
+        }
+
+        static Type UnityLogEntries
+        {
+            get
+            {
+                if (null == m_entriesType)
+                {
+                    m_entriesType = System.Type.GetType("UnityEditor.LogEntries,UnityEditor.dll");
+                }
+                return m_entriesType;
+            }
+        }
+
+        public static int GetUnityLogCount()
+        {
+            return (int)UnityLogEntries.GetMethod("GetCount").Invoke(null, null);
+        }
+
+        public static void ClearUnityLogConsole()
+        {
+            var clearMethod = UnityLogEntries.GetMethod("Clear", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            clearMethod.Invoke(null, null);
+        }
+
+        #endregion
+
+        [InitializeOnLoadMethod]
+        public static void InitLogManager()
+        {
+            InfoLogCount = WarningLogCount = ErrorLogCount = 0;
+            TempLogManagerHelper.LoadLogManagerSettingFile(out var settingPack);
+            if (null != settingPack)
+            {
+                // Debug.Log("load editor log manager setting");
+                m_currentPack = new TempLogManagerSettingPack(settingPack);
+                ApplySettingPack(settingPack);
+            }
+
+            TempLogManager.InitLogManager();
+            GetLogsOfromUnityConsole();
+            // CompilationPipeline.assemblyCompilationStarted += OnCodeCompileStart;
+            AssemblyReloadEvents.beforeAssemblyReload += SaveSetting;
+
+            m_updateTime = 0;
+            m_needRefresh = false;
+
+            TempLogManager.OnLogItemCreated -= AddNewLogItem;
+            TempLogManager.OnLogItemCreated += AddNewLogItem;
+            TempLogManager.InitLogManager();
+
+            EditorApplication.update -= EditorTick;
+            EditorApplication.update += EditorTick;
+            EditorApplication.quitting -= OnEditorQuitting;
+            EditorApplication.quitting += OnEditorQuitting;
+            // Debug.Log("Editor LogManager Inited");
+        }
+
+        public static void SetSelectedItem(TempLogItem nextSelectedItem)
+        {
+            m_selectedItem = nextSelectedItem;
+        }
+
+        public static void GetLogs(ref List<TempLogItem> logs)
+        {
+            // TODO : do not new a list everytime, cache 1
+            logs.Clear();
+
+            int flag = 0;
+            if (IsShowLog)
+                flag = flag | LOG_FLAG;
+            if (IsShowWarning)
+                flag = flag | WARNING_FLAG;
+            if (IsShowError)
+                flag = flag | ERROR_FLAG;
+
+            for (int i = 0; i < m_logItems.Count; i++)
+            {
+                if ((flag & m_logItems[i].LogTypeFlag) != 0)
+                    logs.Add(m_logItems[i]);
+            }
+        }
+
+        public static void ClearLogs()
+        {
+            m_selectedItem = null;
+            InfoLogCount = 0;
+            WarningLogCount = 0;
+            ErrorLogCount = 0;
+            m_logItems.Clear();
+            ClearUnityLogConsole();
+            m_needRefresh = true;
+        }
+
+        public static void ApplySettingPack(TempLogManagerSettingPack pack)
+        {
+            IsShowLog = pack.IsShowLog;
+            IsShowWarning = pack.IsShowWarning;
+            IsShowError = pack.IsShowError;
+            IsClearOnPlay = pack.IsClearOnPlay;
+            m_writeLogFileInEditor = pack.WriteFileInEditor;
+        }
+
+        public static void AddNewLogItem(TempLogItem log)
+        {
+            switch (log.LogType)
+            {
+                case LogType.Error:
+                    ErrorLogCount++;
+                    break;
+                case LogType.Assert:
+                    ErrorLogCount++;
+                    break;
+                case LogType.Warning:
+                    WarningLogCount++;
+                    break;
+                case LogType.Log:
+                    InfoLogCount++;
+                    break;
+                case LogType.Exception:
+                    ErrorLogCount++;
+                    break;
+                default:
+                    break;
+            }
+            m_needRefresh = true;
+            m_logItems.Add(log);
+        }
+
+        public static void SetWriteFileFlag(bool value)
+        {
+            if (m_writeLogFileInEditor == value)
+                return;
+
+            m_writeLogFileInEditor = value;
+            if (Application.isPlaying)
+            {
+                TempLogManager.SetFlagOFWriteFile(m_writeLogFileInEditor);
+            }
+        }
+
+        public static int GetLogsFromUnityConsole(LogType logType)
+        {
+            int enableLogFlag = 0;
+            switch (logType)
+            {
+                case LogType.Error:
+                case LogType.Assert:
+                    enableLogFlag = ERROR_FLAG;
+                    break;
+                case LogType.Warning:
+                    enableLogFlag = WARNING_FLAG;
+                    break;
+                case LogType.Log:
+                    enableLogFlag = LOG_FLAG;
+                    break;
+                case LogType.Exception:
+                    enableLogFlag = ERROR_FLAG;
+                    break;
+                default:
+                    enableLogFlag = LOG_FLAG | WARNING_FLAG | ERROR_FLAG;
+                    logType = LogType.Log;
+                    break;
+            }
+
+            var setall = UnityConsoleWindow.GetMethod("SetFlag", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            setall.Invoke(null, new object[] { LOG_FLAG, false });
+            setall.Invoke(null, new object[] { WARNING_FLAG, false });
+            setall.Invoke(null, new object[] { ERROR_FLAG, false });
+            setall.Invoke(null, new object[] { enableLogFlag, true });
+
+            // danger
+            int startIndex = 0;
+            var m = UnityLogEntries.GetMethod("GetEntryInternal", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            var start = UnityLogEntries.GetMethod("StartGettingEntries", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            start.Invoke(null, null);
+
+            string message = string.Empty;
+            string stackTrace = string.Empty;
+            int count = GetUnityLogCount();
+            TempLogItem logItem = null;
+            for (int i = 0; i < count; i++)
+            {
+                if (i >= startIndex)
+                {
+                    var e = Activator.CreateInstance(UnityLogEntry);
+                    m.Invoke(null, new object[] { i, e });
+
+                    FieldInfo field = e.GetType().GetField("condition", BindingFlags.Instance | BindingFlags.Public);
+                    message = (string)field.GetValue(e);
+
+                    TempLogManagerHelper.SplitUnityLog(ref message, out stackTrace);
+                    logItem = new TempLogItem(message, stackTrace, logType, enableLogFlag);
+                    m_logItems.Add(logItem);
+                }
+
+            }
+            var end = UnityLogEntries.GetMethod("EndGettingEntries", BindingFlags.Static | BindingFlags.Public);
+            end.Invoke(null, null);
+
+            setall.Invoke(null, new object[] { LOG_FLAG, true });
+            setall.Invoke(null, new object[] { WARNING_FLAG, true });
+            setall.Invoke(null, new object[] { ERROR_FLAG, true });
+            return count;
+        }
+
+        private static void GetLogsOfromUnityConsole()
+        {
+            m_logItems = new List<TempLogItem>();
+
+            // to capture the logs already in Unity Console
+            InfoLogCount = GetLogsFromUnityConsole(LogType.Log);
+            WarningLogCount = GetLogsFromUnityConsole(LogType.Warning);
+            ErrorLogCount = GetLogsFromUnityConsole(LogType.Error);
+
+            // reset the log flag as user want
+            var setall = UnityConsoleWindow.GetMethod("SetFlag", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            setall.Invoke(null, new object[] { LOG_FLAG, IsShowLog });
+            setall.Invoke(null, new object[] { WARNING_FLAG, IsShowWarning });
+            setall.Invoke(null, new object[] { ERROR_FLAG, IsShowError });
+
+            //Debug.Log($"loaded logs {m_logItems.Count}");
+            //Debug.Log($"log count:\ninfo {InfoLogCount}\nwarninvg {WarningLogCount}\nerror {ErrorLogCount}");
+        }
+
+        private static void OnCodeCompileStart(object obj)
+        {
+            if (!m_isCompiling)
+            {
+                SaveSetting();
+                m_isCompiling = true;
+            }
+        }
+
+        private static void OnPlayModeChanged(PlayModeStateChange playMode)
+        {
+            if (PlayModeStateChange.EnteredPlayMode == playMode && IsClearOnPlay)
+                ClearLogs();
+
+            if (PlayModeStateChange.EnteredPlayMode == playMode && m_writeLogFileInEditor)
+                TempLogManager.StartWriteLogFile();
+
+            if (PlayModeStateChange.ExitingPlayMode == playMode)
+                TempLogManager.EndWriteLogFile();
+        }
+
+        private static void SaveSetting()
+        {
+            m_currentPack.IsClearOnPlay = IsClearOnPlay;
+            m_currentPack.IsShowLog = IsShowLog;
+            m_currentPack.IsShowWarning = IsShowWarning;
+            m_currentPack.IsShowError = IsShowError;
+            m_currentPack.WriteFileInEditor = m_writeLogFileInEditor;
+
+            TempLogManagerHelper.SaveLogManagerSettingFile(m_currentPack);
+        }
+
+        private static void OnEditorQuitting()
+        {
+            SaveSetting();
+            AssemblyReloadEvents.beforeAssemblyReload -= SaveSetting;
+            // CompilationPipeline.assemblyCompilationStarted -= OnCodeCompileStart;
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.quitting -= OnEditorQuitting;
+        }
+
+        private static void EditorTick()
+        {
+            m_updateTime++;
+            if (m_updateTime >= LOG_UPDATE_INTERVAL)
+            {
+                // check if new logs arrive
+                if (m_needRefresh)
+                {
+                    // if get new logs
+                    // update new logs, notify console
+                    m_updateTime = 0;
+                    OnLogsUpdated?.Invoke();
+                    m_needRefresh = false;
+                }
+                else
+                {
+                    // else if didnt get
+                    m_updateTime -= LOG_UPDATE_ROLLBACK;
+                }
+            }
+        }
+
+    }
+}
+#endif

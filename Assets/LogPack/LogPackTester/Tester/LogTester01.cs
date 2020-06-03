@@ -10,11 +10,11 @@ public class LogTester01 : MonoBehaviour
     private LogType m_logType = default;
     [SerializeField]
     private string m_logMsg = "this \n is \n magic\n to \n test";
-    [Button("test custom log")]
-    public void TestCustomLog()
-    {
-        TempLogManager.CreateLog(in m_logMsg, m_logType);
-    }
+    // [Button("test custom log")]
+    // public void TestCustomLog()
+    // {
+    //     //TempLogManager.CreateLog(in m_logMsg, m_logType);
+    // }
 
     [Button("test normal log")]
     public void TestNormalLog()
@@ -42,11 +42,6 @@ public class LogTester01 : MonoBehaviour
         }
     }
 
-    private void TestCompileWarning()
-    {
-        int wa;
-    }
-
     [Button("test DICT KEY expt")]
     public void CreateKeyExpc()
     {
@@ -72,7 +67,14 @@ public class LogTester01 : MonoBehaviour
             return;
 
         m_stackTestCase = m_stackTestCase % m_stackTraceTemp.Length;
-        TempConsoleHelper.GetTopFileOfCallStack(m_stackTraceTemp[m_stackTestCase], out string result, out int line);
+        TempLogManagerHelper.GetTopFileOfCallStack(m_stackTraceTemp[m_stackTestCase], out string result, out int line);
+    }
+
+    [Button("test spam log")]
+    public void TestSpamLog()
+    {
+        for (int i = 0; i < 20; i++)
+            Debug.Log(m_logMsg);
     }
 
     void OnEnable()

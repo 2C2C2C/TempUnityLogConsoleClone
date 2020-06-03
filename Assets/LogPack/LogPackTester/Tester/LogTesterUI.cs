@@ -26,7 +26,7 @@ public class LogTesterUI : MonoBehaviour
         if (string.IsNullOrEmpty(m_logString) || string.IsNullOrWhiteSpace(m_logString))
             return;
         else
-            CustomLog.TempLogManager.CreateLog(m_logString, LogType.Log);
+            TempLogManager.Log(m_logString);
     }
 
     private void DoLogWarning()
@@ -35,7 +35,7 @@ public class LogTesterUI : MonoBehaviour
         if (string.IsNullOrEmpty(m_logString) || string.IsNullOrWhiteSpace(m_logString))
             return;
         else
-            CustomLog.TempLogManager.CreateLog(m_logString, LogType.Warning);
+            TempLogManager.LogWarning(m_logString);
     }
 
     private void DoLogError()
@@ -44,7 +44,7 @@ public class LogTesterUI : MonoBehaviour
         if (string.IsNullOrEmpty(m_logString) || string.IsNullOrWhiteSpace(m_logString))
             return;
         else
-            CustomLog.TempLogManager.CreateLog(m_logString, LogType.Error);
+            TempLogManager.LogError(m_logString);
     }
 
     private void ShowLogText(string condition, string stackTrace, LogType type)
@@ -56,7 +56,7 @@ public class LogTesterUI : MonoBehaviour
 
     private void Awake()
     {
-        CustomLog.TempLogManager.InitLogManager();
+        TempLogManager.InitLogManager();
 
         m_logButton.onClick.AddListener(DoLog);
         m_logWarningButton.onClick.AddListener(DoLogWarning);
