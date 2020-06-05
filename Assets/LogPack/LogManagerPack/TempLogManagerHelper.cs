@@ -72,46 +72,46 @@ namespace CustomLog
 
         // to match "at Assets/Script/Combat/SkillAction.cs:28"
         static readonly string REGEX_MATCH_PAT_2 = @"Assets/.*cs:[0-9]*";
-        private static Match m_mathObject = null;
+        private static Match _mathObject = null;
 
-        private static string[] m_mutilineStackTrace = null;
-        private static string m_tempStackTrace = null;
+        private static string[] _mutilineStackTrace = null;
+        private static string _tempStackTrace = null;
 
         public static void GetTopFileOfCallStack(in string callstack, out string filePath, out int lineNum)
         {
             filePath = string.Empty;
             lineNum = 0;
-            m_tempStackTrace = string.Copy(callstack);
-            m_mutilineStackTrace = callstack.Split('\n');
+            _tempStackTrace = string.Copy(callstack);
+            _mutilineStackTrace = callstack.Split('\n');
             string tempLineStr = null;
 
-            for (int i = 0; i < m_mutilineStackTrace.Length; i++)
+            for (int i = 0; i < _mutilineStackTrace.Length; i++)
             {
-                m_mathObject = Regex.Match(m_mutilineStackTrace[i], REGEX_MATCH_PAT_1, RegexOptions.IgnoreCase);
+                _mathObject = Regex.Match(_mutilineStackTrace[i], REGEX_MATCH_PAT_1, RegexOptions.IgnoreCase);
 
-                if (m_mathObject.Success)
+                if (_mathObject.Success)
                 {
                     // value like Assets\Script\Combat\SkillAction.cs(620,25)
-                    if (m_mathObject.Value.Contains(LOGMANAGER_NAME))
+                    if (_mathObject.Value.Contains(LOGMANAGER_NAME))
                         continue;
 
-                    filePath = m_mathObject.Value.Substring(0, m_mathObject.Value.IndexOf('('));
-                    lineNum = m_mathObject.Value.IndexOf(',') - m_mathObject.Value.IndexOf('(') - 1;
-                    tempLineStr = m_mathObject.Value.Substring(m_mathObject.Value.IndexOf('(') + 1, lineNum);
+                    filePath = _mathObject.Value.Substring(0, _mathObject.Value.IndexOf('('));
+                    lineNum = _mathObject.Value.IndexOf(',') - _mathObject.Value.IndexOf('(') - 1;
+                    tempLineStr = _mathObject.Value.Substring(_mathObject.Value.IndexOf('(') + 1, lineNum);
                     if (!Int32.TryParse(tempLineStr, out lineNum))
                         lineNum = 1;
                     break;
                 }
 
-                m_mathObject = Regex.Match(m_mutilineStackTrace[i], REGEX_MATCH_PAT_2, RegexOptions.IgnoreCase);
-                if (m_mathObject.Success)
+                _mathObject = Regex.Match(_mutilineStackTrace[i], REGEX_MATCH_PAT_2, RegexOptions.IgnoreCase);
+                if (_mathObject.Success)
                 {
                     // value like at at Assets/Script/Combat/SkillAction.cs:28
-                    if (m_mathObject.Value.Contains(LOGMANAGER_NAME))
+                    if (_mathObject.Value.Contains(LOGMANAGER_NAME))
                         continue;
 
-                    filePath = m_mathObject.Value.Substring(0, m_mathObject.Value.IndexOf(':'));
-                    tempLineStr = m_mathObject.Value.Substring(m_mathObject.Value.IndexOf(':') + 1);
+                    filePath = _mathObject.Value.Substring(0, _mathObject.Value.IndexOf(':'));
+                    tempLineStr = _mathObject.Value.Substring(_mathObject.Value.IndexOf(':') + 1);
                     if (!Int32.TryParse(tempLineStr, out lineNum))
                         lineNum = 1;
 
@@ -177,7 +177,7 @@ namespace CustomLog
             }
         }
 
-        private static readonly Type m_unityGOType = typeof(GameObject);
+        private static readonly Type _unityGOType = typeof(GameObject);
         public static bool TryToLocateContext(UnityEngine.Object context)
         {
             bool result = false;
@@ -187,7 +187,7 @@ namespace CustomLog
                 return result;
             }
 
-            if (context.GetType() == m_unityGOType)
+            if (context.GetType() == _unityGOType)
             {
                 //???
                 // is GO
@@ -207,12 +207,12 @@ namespace CustomLog
         }
         public static readonly string EDITOR_LOG_SETTING_KEY = "LogManagerEditorSetting";
 
-        public static void SaveLogManagerSettingFile(TempLogManagerSettingPack pack)
+        public static void SaveLogManagerSettingFile(in TempLogManagerSettingPack pack)
         {
             // TODO : to create a TempLogManagerData
             //Application.persistentDataPath
             string jsonStr = JsonUtility.ToJson(pack);
-            Debug.Log($"wanna save log manager setting: \n{jsonStr}");
+            //Debug.Log($"wanna save log manager setting: \n{jsonStr}");
             UnityEditor.EditorPrefs.SetString(EDITOR_LOG_SETTING_KEY, jsonStr);
         }
 

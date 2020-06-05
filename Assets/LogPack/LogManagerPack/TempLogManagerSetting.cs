@@ -7,28 +7,35 @@ using UnityEngine;
 namespace CustomLog
 {
     [System.Serializable]
-    public class TempLogManagerSettingPack
+    public struct TempLogManagerSettingPack
     {
-        public bool IsShowLog = true;
-        public bool IsShowWarning = true;
-        public bool IsShowError = true;
+        public bool IsShowLog;
+        public bool IsShowWarning;
+        public bool IsShowError;
 
-        public bool IsClearOnPlay = true;
-        public bool IsErrorPause = true;
+        public bool IsClearOnPlay;
+        public bool IsErrorPause;
 
-        public bool WriteFileInEditor = true;
+        public bool WriteFileInEditor;
 
-        public int[] m_categoryForUnShow = null;
+        public int[] m_categoryForUnShow;
 
-        public TempLogManagerSettingPack()
+        public TempLogManagerSettingPack(int[] catesUnshow = null)
         {
-            m_categoryForUnShow = new int[0];
+            if (null == catesUnshow)
+                m_categoryForUnShow = new int[0];
+            else
+            {
+                m_categoryForUnShow = new int[catesUnshow.Length];
+                Array.Copy(catesUnshow, m_categoryForUnShow, catesUnshow.Length);
+            }
             IsShowLog = IsShowWarning = IsShowError = true;
+            IsClearOnPlay = false;
             IsErrorPause = false;
             WriteFileInEditor = false;
         }
 
-        public TempLogManagerSettingPack(TempLogManagerSettingPack pack)
+        public TempLogManagerSettingPack(in TempLogManagerSettingPack pack)
         {
             IsShowLog = pack.IsShowLog;
             IsShowWarning = pack.IsShowWarning;
@@ -53,6 +60,6 @@ namespace CustomLog
         }
 
     }
-  
+
 }
 #endif

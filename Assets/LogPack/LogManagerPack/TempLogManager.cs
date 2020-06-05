@@ -12,16 +12,16 @@ public static class TempLogManager
     private static readonly int LOG_FLAG = 1 << 7;
     private static readonly int WARNING_FLAG = 1 << 8;
     private static readonly int ERROR_FLAG = 1 << 9;
-    private static bool m_hasInited = false;
+    private static bool _hasInited = false;
 
-    private static int m_normalLogCount = 0;
-    private static int m_warningLogCount = 0;
-    private static int m_errorLogCount = 0;
+    private static int _normalLogCount = 0;
+    private static int _warningLogCount = 0;
+    private static int _errorLogCount = 0;
 
     public static readonly string MANAGER_TAG = "[LogManager]";
-    private static StreamWriter m_logFileWriter = null;
+    private static StreamWriter _logFileWriter = null;
     private static readonly string LOG_FILE_NAME = "LogFile";
-    private static bool m_writeLogFile = true;
+    private static bool _writeLogFile = true;
 
 #if UNITY_EDITOR
     public static event Action<TempLogItem> OnLogItemCreated;
@@ -29,7 +29,7 @@ public static class TempLogManager
 
     public static void InitLogManager()
     {
-        m_hasInited = false;
+        _hasInited = false;
         Application.logMessageReceived -= LogMessageReceived;
         Application.logMessageReceived += LogMessageReceived;
         Application.quitting -= OnGameQuit;
@@ -39,12 +39,12 @@ public static class TempLogManager
         if (m_writeLogFile)
             FreshFileWriter();
 #endif
-        m_normalLogCount = 0;
-        m_warningLogCount = 0;
-        m_errorLogCount = 0;
+        _normalLogCount = 0;
+        _warningLogCount = 0;
+        _errorLogCount = 0;
 
         // Debug.Log("LogManager Inited");
-        m_hasInited = true;
+        _hasInited = true;
     }
 
     #region log methods
@@ -147,12 +147,12 @@ public static class TempLogManager
 
     public static void SetFlagOFWriteFile(bool value)
     {
-        m_writeLogFile = value;
-        if (!m_writeLogFile)
+        _writeLogFile = value;
+        if (!_writeLogFile)
         {
             CloseFileWriter();
         }
-        else if (m_writeLogFile && Application.isPlaying)
+        else if (_writeLogFile && Application.isPlaying)
         {
             FreshFileWriter();
         }
@@ -185,7 +185,7 @@ public static class TempLogManager
 
     private static void CreateLog(in string message, LogType logType)
     {
-        if (!m_hasInited)
+        if (!_hasInited)
             InitLogManager();
 
         string fullMessage = null;
@@ -221,25 +221,25 @@ public static class TempLogManager
         switch (type)
         {
             case LogType.Error:
-                m_errorLogCount++;
+                _errorLogCount++;
                 break;
             case LogType.Assert:
                 type = LogType.Error;
-                m_errorLogCount++;
+                _errorLogCount++;
                 break;
             case LogType.Warning:
-                m_warningLogCount++;
+                _warningLogCount++;
                 break;
             case LogType.Log:
-                m_normalLogCount++;
+                _normalLogCount++;
                 break;
             case LogType.Exception:
                 type = LogType.Error;
-                m_errorLogCount++;
+                _errorLogCount++;
                 break;
             default:
                 type = LogType.Error;
-                m_errorLogCount++;
+                _errorLogCount++;
                 break;
         }
 
@@ -279,46 +279,46 @@ public static class TempLogManager
 
     private static void FreshFileWriter()
     {
-        if (null != m_logFileWriter)
+        if (null != _logFileWriter)
         {
             CloseFileWriter();
         }
 
         string path = null;
         path = $"{Application.persistentDataPath}/{LOG_FILE_NAME}_{System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}.txt";
-        m_logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
-        m_logFileWriter.WriteLine($"Game launch");
-        m_logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
-        m_logFileWriter.WriteLine($"----------------------------------------\n");
+        _logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
+        _logFileWriter.WriteLine($"Game launch");
+        _logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
+        _logFileWriter.WriteLine($"----------------------------------------\n");
     }
 
     private static void CloseFileWriter()
     {
-        if (null != m_logFileWriter)
+        if (null != _logFileWriter)
         {
-            m_logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}");
-            m_logFileWriter.WriteLine($"Result:\n log : {m_normalLogCount}\n warning : {m_warningLogCount}\n error : {m_errorLogCount}\n");
-            m_logFileWriter.Dispose();
-            m_logFileWriter.Close();
+            _logFileWriter.WriteLine($"Game End at {System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}");
+            _logFileWriter.WriteLine($"Result:\n log : {_normalLogCount}\n warning : {_warningLogCount}\n error : {_errorLogCount}\n");
+            _logFileWriter.Dispose();
+            _logFileWriter.Close();
         }
-        m_logFileWriter = null;
+        _logFileWriter = null;
     }
 
     private static void WriteLogToFile(in TempLogItem logItem)
     {
 #if UNITY_EDITOR
-        if (!m_writeLogFile || (Application.isEditor && !EditorApplication.isPlaying))
+        if (!_writeLogFile || (Application.isEditor && !EditorApplication.isPlaying))
             return;
 #endif
 
-        if (Application.isPlaying && m_writeLogFile)
+        if (Application.isPlaying && _writeLogFile)
         {
-            if (m_logFileWriter == null)
+            if (_logFileWriter == null)
                 FreshFileWriter();
 
             // write log to file
-            m_logFileWriter.WriteLine($"{logItem.LogType}\n{logItem.LogTime}\n{logItem.LogMessage}\n\n{logItem.LogStackTrace}");
-            m_logFileWriter.WriteLine("-----------------------------\n");
+            _logFileWriter.WriteLine($"{logItem.LogType}\n{logItem.LogTime}\n{logItem.LogMessage}\n\n{logItem.LogStackTrace}");
+            _logFileWriter.WriteLine("-----------------------------\n");
         }
     }
 

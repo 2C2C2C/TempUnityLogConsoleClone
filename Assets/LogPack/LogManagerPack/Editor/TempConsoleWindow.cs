@@ -28,7 +28,7 @@ namespace CustomLog
         private bool m_isResizing = false;
 
         private bool m_isClearOnPlay = false;
-        private bool m_isErrorPause = false;
+        // private bool m_isErrorPause = false;
         private bool m_writeFileInEditorMode = false;
         private bool m_isShowLog = true;
         private bool m_isShowWarning = true;
@@ -66,6 +66,12 @@ namespace CustomLog
         private Texture2D m_boxBgEven = null;
         private Texture2D m_boxBgSelected = null;
         private Texture m_boxIcon = null;
+
+        #endregion
+
+        #region events
+
+        public static System.Action OnTempConsoleClosed;
 
         #endregion
 
@@ -113,9 +119,9 @@ namespace CustomLog
             GUILayout.Space(5.0f);
 
             m_isClearOnPlay = GUILayout.Toggle(LogManagerForUnityEditor.IsClearOnPlay, new GUIContent("Clear On Play"), EditorStyles.toolbarButton, GUILayout.Width(80.0f));
-            m_isErrorPause = GUILayout.Toggle(LogManagerForUnityEditor.IsErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
             LogManagerForUnityEditor.IsClearOnPlay = m_isClearOnPlay;
-            LogManagerForUnityEditor.IsErrorPause = m_isErrorPause;
+            // m_isErrorPause = GUILayout.Toggle(LogManagerForUnityEditor.IsErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
+            // LogManagerForUnityEditor.IsErrorPause = m_isErrorPause;
 
             m_writeFileInEditorMode = GUILayout.Toggle(m_writeFileInEditorMode, new GUIContent("Write Log File"), EditorStyles.toolbarButton, GUILayout.Width(120.0f));
             LogManagerForUnityEditor.SetWriteFileFlag(m_writeFileInEditorMode);
@@ -537,6 +543,11 @@ namespace CustomLog
         {
             m_currentShowingItems.Clear();
             LogManagerForUnityEditor.OnLogsUpdated -= WannaRepaint;
+        }
+
+        private void OnDestroy()
+        {
+            OnTempConsoleClosed?.Invoke();
         }
 
         #endregion

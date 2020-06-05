@@ -14,26 +14,79 @@ namespace CustomLog
         public static int WarningLogCount { get; private set; }
         public static int ErrorLogCount { get; private set; }
 
-        private static List<TempLogItem> m_logItems = null;
-        private static TempLogItem m_selectedItem = null;
+        private static List<TempLogItem> _logItems = null;
+        private static TempLogItem _selectedItem = null;
 
-        public static bool IsClearOnPlay { get; set; }
-        public static bool IsErrorPause { get; set; }
+        private static bool _isClearOnPlay = false;
+        public static bool IsClearOnPlay
+        {
+            get => _isClearOnPlay;
 
-        public static bool IsShowLog { get; set; }
-        public static bool IsShowWarning { get; set; }
-        public static bool IsShowError { get; set; }
+            set
+            {
+                _needRefresh = _needRefresh || (value != _isClearOnPlay);
+                _isClearOnPlay = value;
+            }
+        }
 
-        private static TempLogManagerSettingPack m_currentPack = null;
-        public static TempLogManagerSettingPack GetInitPack() => m_currentPack;
+        // private static bool _isErrorPause = false;
+        // public static bool IsErrorPause
+        // {
+        //     get => _isErrorPause;
 
-        private static bool m_writeLogFileInEditor = false;
+        //     set
+        //     {
+        //         _needRefresh = _needRefresh || (value != _isErrorPause);
+        //         _isErrorPause = value;
+        //     }
+        // }
+
+        private static bool _isShowLog = true;
+        public static bool IsShowLog
+        {
+            get => _isShowLog;
+            set
+            {
+                _needRefresh = _needRefresh || (value != _isShowLog);
+                _isShowLog = value;
+            }
+        }
+        private static bool _isShowWarning = true;
+        public static bool IsShowWarning
+        {
+            get => _isShowWarning;
+            set
+            {
+                _needRefresh = _needRefresh || (value != _isShowWarning);
+                _isShowWarning = value;
+            }
+        }
+        private static bool _isShowError = true;
+        public static bool IsShowError
+        {
+            get => _isShowError;
+            set
+            {
+                _needRefresh = _needRefresh || (value != _isShowError);
+                _isShowError = value;
+            }
+        }
+
+        private static TempLogManagerSettingPack _currentPack = default;
+        public static TempLogManagerSettingPack GetInitPack() => _currentPack;
+
+        private static bool _writeLogFileInEditor = false;
 
         private static readonly int LOG_UPDATE_INTERVAL = 15;
-        private static readonly int LOG_UPDATE_ROLLBACK = 5;
-        private static int m_updateTime = 0;
-        private static bool m_needRefresh = false;
-        private static bool m_isCompiling = false;
+        // private static readonly int LOG_UPDATE_ROLLBACK = 5;
+        private static int _updateTime = 0;
+        private static bool _needRefresh = false;
+        private static bool _isCompiling = false;
+
+        private static bool _needSave = false;
+        private static int _autoSaveTimer = 0;
+        private static readonly int SAVE_INTERVAL = 500;
+
 
         public static event Action OnLogsUpdated;
 
@@ -101,20 +154,17 @@ namespace CustomLog
         {
             InfoLogCount = WarningLogCount = ErrorLogCount = 0;
             TempLogManagerHelper.LoadLogManagerSettingFile(out var settingPack);
-            if (null != settingPack)
-            {
-                // Debug.Log("load editor log manager setting");
-                m_currentPack = new TempLogManagerSettingPack(settingPack);
-                ApplySettingPack(settingPack);
-            }
+            // Debug.Log("load editor log manager setting");
+            _currentPack = new TempLogManagerSettingPack(settingPack);
+            ApplySettingPack(in settingPack);
 
             TempLogManager.InitLogManager();
             GetLogsOfromUnityConsole();
-            // CompilationPipeline.assemblyCompilationStarted += OnCodeCompileStart;
+            TempConsoleWindow.OnTempConsoleClosed += SaveSetting;
             AssemblyReloadEvents.beforeAssemblyReload += SaveSetting;
 
-            m_updateTime = 0;
-            m_needRefresh = false;
+            _updateTime = 0;
+            _needRefresh = false;
 
             TempLogManager.OnLogItemCreated -= AddNewLogItem;
             TempLogManager.OnLogItemCreated += AddNewLogItem;
@@ -129,7 +179,7 @@ namespace CustomLog
 
         public static void SetSelectedItem(TempLogItem nextSelectedItem)
         {
-            m_selectedItem = nextSelectedItem;
+            _selectedItem = nextSelectedItem;
         }
 
         public static void GetLogs(ref List<TempLogItem> logs)
@@ -145,31 +195,31 @@ namespace CustomLog
             if (IsShowError)
                 flag = flag | ERROR_FLAG;
 
-            for (int i = 0; i < m_logItems.Count; i++)
+            for (int i = 0; i < _logItems.Count; i++)
             {
-                if ((flag & m_logItems[i].LogTypeFlag) != 0)
-                    logs.Add(m_logItems[i]);
+                if ((flag & _logItems[i].LogTypeFlag) != 0)
+                    logs.Add(_logItems[i]);
             }
         }
 
         public static void ClearLogs()
         {
-            m_selectedItem = null;
+            _selectedItem = null;
             InfoLogCount = 0;
             WarningLogCount = 0;
             ErrorLogCount = 0;
-            m_logItems.Clear();
+            _logItems.Clear();
             ClearUnityLogConsole();
-            m_needRefresh = true;
+            _needRefresh = true;
         }
 
-        public static void ApplySettingPack(TempLogManagerSettingPack pack)
+        public static void ApplySettingPack(in TempLogManagerSettingPack pack)
         {
             IsShowLog = pack.IsShowLog;
             IsShowWarning = pack.IsShowWarning;
             IsShowError = pack.IsShowError;
             IsClearOnPlay = pack.IsClearOnPlay;
-            m_writeLogFileInEditor = pack.WriteFileInEditor;
+            _writeLogFileInEditor = pack.WriteFileInEditor;
         }
 
         public static void AddNewLogItem(TempLogItem log)
@@ -194,20 +244,19 @@ namespace CustomLog
                 default:
                     break;
             }
-            m_needRefresh = true;
-            m_logItems.Add(log);
+            _needRefresh = true;
+            _logItems.Add(log);
         }
 
         public static void SetWriteFileFlag(bool value)
         {
-            if (m_writeLogFileInEditor == value)
+            if (_writeLogFileInEditor == value)
                 return;
 
-            m_writeLogFileInEditor = value;
+            _writeLogFileInEditor = value;
             if (Application.isPlaying)
-            {
-                TempLogManager.SetFlagOFWriteFile(m_writeLogFileInEditor);
-            }
+                TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
+
         }
 
         public static int GetLogsFromUnityConsole(LogType logType)
@@ -262,7 +311,7 @@ namespace CustomLog
 
                     TempLogManagerHelper.SplitUnityLog(ref message, out stackTrace);
                     logItem = new TempLogItem(message, stackTrace, logType, enableLogFlag);
-                    m_logItems.Add(logItem);
+                    _logItems.Add(logItem);
                 }
 
             }
@@ -277,7 +326,7 @@ namespace CustomLog
 
         private static void GetLogsOfromUnityConsole()
         {
-            m_logItems = new List<TempLogItem>();
+            _logItems = new List<TempLogItem>();
 
             // to capture the logs already in Unity Console
             InfoLogCount = GetLogsFromUnityConsole(LogType.Log);
@@ -296,10 +345,10 @@ namespace CustomLog
 
         private static void OnCodeCompileStart(object obj)
         {
-            if (!m_isCompiling)
+            if (!_isCompiling)
             {
                 SaveSetting();
-                m_isCompiling = true;
+                _isCompiling = true;
             }
         }
 
@@ -308,7 +357,7 @@ namespace CustomLog
             if (PlayModeStateChange.EnteredPlayMode == playMode && IsClearOnPlay)
                 ClearLogs();
 
-            if (PlayModeStateChange.EnteredPlayMode == playMode && m_writeLogFileInEditor)
+            if (PlayModeStateChange.EnteredPlayMode == playMode && _writeLogFileInEditor)
                 TempLogManager.StartWriteLogFile();
 
             if (PlayModeStateChange.ExitingPlayMode == playMode)
@@ -317,44 +366,42 @@ namespace CustomLog
 
         private static void SaveSetting()
         {
-            m_currentPack.IsClearOnPlay = IsClearOnPlay;
-            m_currentPack.IsShowLog = IsShowLog;
-            m_currentPack.IsShowWarning = IsShowWarning;
-            m_currentPack.IsShowError = IsShowError;
-            m_currentPack.WriteFileInEditor = m_writeLogFileInEditor;
+            _currentPack.IsClearOnPlay = IsClearOnPlay;
+            _currentPack.IsShowLog = IsShowLog;
+            _currentPack.IsShowWarning = IsShowWarning;
+            _currentPack.IsShowError = IsShowError;
+            _currentPack.WriteFileInEditor = _writeLogFileInEditor;
 
-            TempLogManagerHelper.SaveLogManagerSettingFile(m_currentPack);
+            TempLogManagerHelper.SaveLogManagerSettingFile(_currentPack);
         }
 
         private static void OnEditorQuitting()
         {
             SaveSetting();
+            TempConsoleWindow.OnTempConsoleClosed -= SaveSetting;
             AssemblyReloadEvents.beforeAssemblyReload -= SaveSetting;
-            // CompilationPipeline.assemblyCompilationStarted -= OnCodeCompileStart;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.quitting -= OnEditorQuitting;
         }
 
         private static void EditorTick()
         {
-            m_updateTime++;
-            if (m_updateTime >= LOG_UPDATE_INTERVAL)
+            if (_needRefresh && ++_updateTime >= LOG_UPDATE_INTERVAL)
             {
-                // check if new logs arrive
-                if (m_needRefresh)
-                {
-                    // if get new logs
-                    // update new logs, notify console
-                    m_updateTime = 0;
-                    OnLogsUpdated?.Invoke();
-                    m_needRefresh = false;
-                }
-                else
-                {
-                    // else if didnt get
-                    m_updateTime -= LOG_UPDATE_ROLLBACK;
-                }
+                // if get new logs
+                // update new logs, notify console
+                _updateTime = 0;
+                OnLogsUpdated?.Invoke();
+                _needRefresh = false;
             }
+
+            if (_needSave && ++_autoSaveTimer >= SAVE_INTERVAL)
+            {
+                SaveSetting();
+                _autoSaveTimer = 0;
+                _needSave = false;
+            }
+
         }
 
     }
