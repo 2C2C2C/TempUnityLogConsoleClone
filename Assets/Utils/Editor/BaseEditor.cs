@@ -1,21 +1,25 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
-[CustomEditor(typeof(UnityEngine.Object), true), CanEditMultipleObjects]
+[CustomEditor(typeof(MonoBehaviour), true), CanEditMultipleObjects]
 public class BaseEditor : Editor
 {
+    private Type m_targetType = null;
+
     public override void OnInspectorGUI()
     {
+        // draw default stuff
         base.OnInspectorGUI();
-        // Added functionality
-        Type type = target.GetType();
-        while (type != null)
+
+        if (null == m_targetType)
+            m_targetType = target.GetType();
+
+        while (m_targetType != null)
         {
-            MethodInfo[] methods = type.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            // try find member function and static function :)
+            MethodInfo[] methods = m_targetType.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
             foreach (var method in methods)
             {
                 ButtonAttribute button = method.GetCustomAttribute<ButtonAttribute>();
@@ -23,12 +27,12 @@ public class BaseEditor : Editor
                 {
                     EditorGUILayout.HelpBox("ButtonAttribute: method cannot have parameters.", MessageType.Warning);
                 }
-                else if (button != null && GUILayout.Button(button.m_name))
+                else if (button != null && GUILayout.Button(button.m_methodName))
                 {
                     method.Invoke(target, new object[] { });
                 }
             }
-            type = type.BaseType;
+            m_targetType = m_targetType.BaseType;
         }
 
     }

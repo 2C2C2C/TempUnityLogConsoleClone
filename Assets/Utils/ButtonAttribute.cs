@@ -1,13 +1,11 @@
-﻿using UnityEngine;
-using System.Collections;
-using System;
+﻿using System;
 
 [AttributeUsage(AttributeTargets.Method)]
 public class ButtonAttribute : Attribute
 {
-    public string m_name;
+    public string m_methodName = string.Empty;
     public ButtonAttribute(string methodName)
     {
-        m_name = methodName;
+        m_methodName = methodName;
     }
 }

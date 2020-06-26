@@ -10,6 +10,8 @@ namespace CustomLog
     public class TempConsoleWindow : EditorWindow
     {
         private static readonly string WindowName = "Temp Console Window";
+        private static TempConsoleWindow _instance = null;
+        public static TempConsoleWindow Instance => _instance;
 
         private bool m_hasInited = false;
         private bool m_needRefresh = false;
@@ -71,7 +73,8 @@ namespace CustomLog
 
         #region events
 
-        public static System.Action OnTempConsoleClosed;
+        public static System.Action OnTempConsoleCreated;
+        public static System.Action OnTempConsoleDestroyed;
 
         #endregion
 
@@ -91,7 +94,7 @@ namespace CustomLog
         public void ClearLogs()
         {
             m_selectedLogItem = null;
-            LogManagerForUnityEditor.ClearLogs();
+            TempLogManagerForUnityEditor.ClearLogs();
         }
 
         [MenuItem("Window/Temp Log Window")]
@@ -118,26 +121,32 @@ namespace CustomLog
             }
             GUILayout.Space(5.0f);
 
-            m_isClearOnPlay = GUILayout.Toggle(LogManagerForUnityEditor.IsClearOnPlay, new GUIContent("Clear On Play"), EditorStyles.toolbarButton, GUILayout.Width(80.0f));
-            LogManagerForUnityEditor.IsClearOnPlay = m_isClearOnPlay;
+            m_isClearOnPlay = GUILayout.Toggle(TempLogManagerForUnityEditor.IsClearOnPlay, new GUIContent("Clear On Play"), EditorStyles.toolbarButton, GUILayout.Width(80.0f));
+            TempLogManagerForUnityEditor.IsClearOnPlay = m_isClearOnPlay;
             // m_isErrorPause = GUILayout.Toggle(LogManagerForUnityEditor.IsErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
             // LogManagerForUnityEditor.IsErrorPause = m_isErrorPause;
 
             m_writeFileInEditorMode = GUILayout.Toggle(m_writeFileInEditorMode, new GUIContent("Write Log File"), EditorStyles.toolbarButton, GUILayout.Width(120.0f));
-            LogManagerForUnityEditor.SetWriteFileFlag(m_writeFileInEditorMode);
+            TempLogManagerForUnityEditor.SetWriteFileFlag(m_writeFileInEditorMode);
+
+            GUILayout.Space(30.0f);
+            if (GUILayout.Button(new GUIContent("Clear Log File"), EditorStyles.toolbarButton, GUILayout.Width(120.0f)))
+            {
+                TempLogManager.ClearLogFiles();
+            }
 
             GUILayout.FlexibleSpace();
 
-            m_normalLogCount = Mathf.Clamp(LogManagerForUnityEditor.InfoLogCount, 0, 100);
-            m_warningLogCount = Mathf.Clamp(LogManagerForUnityEditor.WarningLogCount, 0, 100);
-            m_errorLogCount = Mathf.Clamp(LogManagerForUnityEditor.ErrorLogCount, 0, 100);
+            m_normalLogCount = Mathf.Clamp(TempLogManagerForUnityEditor.InfoLogCount, 0, 100);
+            m_warningLogCount = Mathf.Clamp(TempLogManagerForUnityEditor.WarningLogCount, 0, 100);
+            m_errorLogCount = Mathf.Clamp(TempLogManagerForUnityEditor.ErrorLogCount, 0, 100);
 
-            m_isShowLog = GUILayout.Toggle(LogManagerForUnityEditor.IsShowLog, new GUIContent(TempLogManagerHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
-            m_isShowWarning = GUILayout.Toggle(LogManagerForUnityEditor.IsShowWarning, new GUIContent(TempLogManagerHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
-            m_isShowError = GUILayout.Toggle(LogManagerForUnityEditor.IsShowError, new GUIContent(TempLogManagerHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
-            LogManagerForUnityEditor.IsShowLog = m_isShowLog;
-            LogManagerForUnityEditor.IsShowWarning = m_isShowWarning;
-            LogManagerForUnityEditor.IsShowError = m_isShowError;
+            m_isShowLog = GUILayout.Toggle(TempLogManagerForUnityEditor.IsShowLog, new GUIContent(TempLogManagerHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
+            m_isShowWarning = GUILayout.Toggle(TempLogManagerForUnityEditor.IsShowWarning, new GUIContent(TempLogManagerHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
+            m_isShowError = GUILayout.Toggle(TempLogManagerForUnityEditor.IsShowError, new GUIContent(TempLogManagerHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
+            TempLogManagerForUnityEditor.IsShowLog = m_isShowLog;
+            TempLogManagerForUnityEditor.IsShowWarning = m_isShowWarning;
+            TempLogManagerForUnityEditor.IsShowError = m_isShowError;
 
             int prevCount = m_logTypeForUnshow.Count;
             m_logTypeForUnshow.Clear();
@@ -212,14 +221,14 @@ namespace CustomLog
                         {
                             m_selectedLogItem.IsSelected = false;
                             m_selectedLogItem = m_currentShowingItems[i];
-                            LogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
+                            TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
                             m_selectedLogItem.IsSelected = true;
                         }
                     }
                     else
                     {
                         m_selectedLogItem = m_currentShowingItems[i];
-                        LogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
+                        TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
                         m_selectedLogItem.IsSelected = true;
                     }
                     GUI.changed = true;
@@ -382,6 +391,18 @@ namespace CustomLog
                 m_isResizing = false;
             }
 
+            if (EventType.KeyDown == currentEvent.type)
+            {
+                if (KeyCode.UpArrow == currentEvent.keyCode)
+                {
+                    // select prev log
+                }
+                else if (KeyCode.DownArrow == currentEvent.keyCode)
+                {
+                    // select next log
+                }
+            }
+
             Resize(currentEvent);
         }
 
@@ -444,10 +465,10 @@ namespace CustomLog
         private void GetData()
         {
             // make it works for now
-            LogManagerForUnityEditor.GetLogs(ref m_currentShowingItems);
-            m_normalLogCount = LogManagerForUnityEditor.InfoLogCount;
-            m_warningLogCount = LogManagerForUnityEditor.WarningLogCount;
-            m_errorLogCount = LogManagerForUnityEditor.ErrorLogCount;
+            TempLogManagerForUnityEditor.GetLogs(ref m_currentShowingItems);
+            m_normalLogCount = TempLogManagerForUnityEditor.InfoLogCount;
+            m_warningLogCount = TempLogManagerForUnityEditor.WarningLogCount;
+            m_errorLogCount = TempLogManagerForUnityEditor.ErrorLogCount;
 
             m_currentShowCount = m_currentShowingItems.Count;
         }
@@ -462,9 +483,9 @@ namespace CustomLog
         {
             // set log show flag
 
-            m_isShowLog = LogManagerForUnityEditor.IsShowLog;
-            m_isShowWarning = LogManagerForUnityEditor.IsShowWarning;
-            m_isShowError = LogManagerForUnityEditor.IsShowError;
+            m_isShowLog = TempLogManagerForUnityEditor.IsShowLog;
+            m_isShowWarning = TempLogManagerForUnityEditor.IsShowWarning;
+            m_isShowError = TempLogManagerForUnityEditor.IsShowError;
             m_logTypeForUnshow = new HashSet<LogType>();
             if (!m_isShowLog)
             {
@@ -492,10 +513,10 @@ namespace CustomLog
 
         private void InitSomeStuff()
         {
-            m_isClearOnPlay = LogManagerForUnityEditor.IsClearOnPlay;
-            m_isShowLog = LogManagerForUnityEditor.IsShowLog;
-            m_isShowWarning = LogManagerForUnityEditor.IsShowWarning;
-            m_isShowError = LogManagerForUnityEditor.IsShowError;
+            m_isClearOnPlay = TempLogManagerForUnityEditor.IsClearOnPlay;
+            m_isShowLog = TempLogManagerForUnityEditor.IsShowLog;
+            m_isShowWarning = TempLogManagerForUnityEditor.IsShowWarning;
+            m_isShowError = TempLogManagerForUnityEditor.IsShowError;
         }
 
         #region life circle
@@ -503,6 +524,8 @@ namespace CustomLog
         private void Awake()
         {
             m_upperSizeRatio = 0.5f;
+            OnTempConsoleCreated?.Invoke();
+            _instance = this;
         }
 
         private void OnEnable()
@@ -512,7 +535,7 @@ namespace CustomLog
             ContainerInit();
 
             InitSomeStuff();
-            LogManagerForUnityEditor.OnLogsUpdated += WannaRepaint;
+            TempLogManagerForUnityEditor.OnLogsUpdated += WannaRepaint;
             WannaRepaint();
         }
 
@@ -542,12 +565,13 @@ namespace CustomLog
         private void OnDisable()
         {
             m_currentShowingItems.Clear();
-            LogManagerForUnityEditor.OnLogsUpdated -= WannaRepaint;
+            TempLogManagerForUnityEditor.OnLogsUpdated -= WannaRepaint;
         }
 
         private void OnDestroy()
         {
-            OnTempConsoleClosed?.Invoke();
+            OnTempConsoleDestroyed?.Invoke();
+            _instance = null;
         }
 
         #endregion

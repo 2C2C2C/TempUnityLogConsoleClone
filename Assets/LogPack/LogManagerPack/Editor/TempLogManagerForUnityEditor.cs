@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace CustomLog
 {
-    public static class LogManagerForUnityEditor
+    public static class TempLogManagerForUnityEditor
     {
         public static int InfoLogCount { get; private set; }
         public static int WarningLogCount { get; private set; }
@@ -17,6 +17,9 @@ namespace CustomLog
         private static List<TempLogItem> _logItems = null;
         private static TempLogItem _selectedItem = null;
 
+        private static bool _isCustomLogWindowEnabled = false;
+        public static bool IsLogCustomWindowEnabled => _isCustomLogWindowEnabled;
+
         private static bool _isClearOnPlay = false;
         public static bool IsClearOnPlay
         {
@@ -24,22 +27,10 @@ namespace CustomLog
 
             set
             {
-                _needRefresh = _needRefresh || (value != _isClearOnPlay);
+                _needSave = _needSave || (value != _isClearOnPlay);
                 _isClearOnPlay = value;
             }
         }
-
-        // private static bool _isErrorPause = false;
-        // public static bool IsErrorPause
-        // {
-        //     get => _isErrorPause;
-
-        //     set
-        //     {
-        //         _needRefresh = _needRefresh || (value != _isErrorPause);
-        //         _isErrorPause = value;
-        //     }
-        // }
 
         private static bool _isShowLog = true;
         public static bool IsShowLog
@@ -48,6 +39,7 @@ namespace CustomLog
             set
             {
                 _needRefresh = _needRefresh || (value != _isShowLog);
+                _needSave = _needSave || (value != _isShowLog);
                 _isShowLog = value;
             }
         }
@@ -58,6 +50,7 @@ namespace CustomLog
             set
             {
                 _needRefresh = _needRefresh || (value != _isShowWarning);
+                _needSave = _needSave || (value != _isShowWarning);
                 _isShowWarning = value;
             }
         }
@@ -68,6 +61,7 @@ namespace CustomLog
             set
             {
                 _needRefresh = _needRefresh || (value != _isShowError);
+                _needSave = _needSave || (value != _isShowError);
                 _isShowError = value;
             }
         }
@@ -78,15 +72,14 @@ namespace CustomLog
         private static bool _writeLogFileInEditor = false;
 
         private static readonly int LOG_UPDATE_INTERVAL = 15;
-        // private static readonly int LOG_UPDATE_ROLLBACK = 5;
+
         private static int _updateTime = 0;
         private static bool _needRefresh = false;
         private static bool _isCompiling = false;
 
         private static bool _needSave = false;
         private static int _autoSaveTimer = 0;
-        private static readonly int SAVE_INTERVAL = 500;
-
+        private static readonly int SAVE_INTERVAL = 50;
 
         public static event Action OnLogsUpdated;
 
@@ -95,6 +88,7 @@ namespace CustomLog
         static readonly int LOG_FLAG = 1 << 7;
         static readonly int WARNING_FLAG = 1 << 8;
         static readonly int ERROR_FLAG = 1 << 9;
+        static readonly int CLEAR_ON_PLAY_FLAG = 1 << 1;
 
         static Type m_entriesType = null;
         static Type m_entryType = null;
@@ -145,118 +139,6 @@ namespace CustomLog
         {
             var clearMethod = UnityLogEntries.GetMethod("Clear", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
             clearMethod.Invoke(null, null);
-        }
-
-        #endregion
-
-        [InitializeOnLoadMethod]
-        public static void InitLogManager()
-        {
-            InfoLogCount = WarningLogCount = ErrorLogCount = 0;
-            TempLogManagerHelper.LoadLogManagerSettingFile(out var settingPack);
-            // Debug.Log("load editor log manager setting");
-            _currentPack = new TempLogManagerSettingPack(settingPack);
-            ApplySettingPack(in settingPack);
-
-            TempLogManager.InitLogManager();
-            GetLogsOfromUnityConsole();
-            TempConsoleWindow.OnTempConsoleClosed += SaveSetting;
-            AssemblyReloadEvents.beforeAssemblyReload += SaveSetting;
-
-            _updateTime = 0;
-            _needRefresh = false;
-
-            TempLogManager.OnLogItemCreated -= AddNewLogItem;
-            TempLogManager.OnLogItemCreated += AddNewLogItem;
-            TempLogManager.InitLogManager();
-
-            EditorApplication.update -= EditorTick;
-            EditorApplication.update += EditorTick;
-            EditorApplication.quitting -= OnEditorQuitting;
-            EditorApplication.quitting += OnEditorQuitting;
-            // Debug.Log("Editor LogManager Inited");
-        }
-
-        public static void SetSelectedItem(TempLogItem nextSelectedItem)
-        {
-            _selectedItem = nextSelectedItem;
-        }
-
-        public static void GetLogs(ref List<TempLogItem> logs)
-        {
-            // TODO : do not new a list everytime, cache 1
-            logs.Clear();
-
-            int flag = 0;
-            if (IsShowLog)
-                flag = flag | LOG_FLAG;
-            if (IsShowWarning)
-                flag = flag | WARNING_FLAG;
-            if (IsShowError)
-                flag = flag | ERROR_FLAG;
-
-            for (int i = 0; i < _logItems.Count; i++)
-            {
-                if ((flag & _logItems[i].LogTypeFlag) != 0)
-                    logs.Add(_logItems[i]);
-            }
-        }
-
-        public static void ClearLogs()
-        {
-            _selectedItem = null;
-            InfoLogCount = 0;
-            WarningLogCount = 0;
-            ErrorLogCount = 0;
-            _logItems.Clear();
-            ClearUnityLogConsole();
-            _needRefresh = true;
-        }
-
-        public static void ApplySettingPack(in TempLogManagerSettingPack pack)
-        {
-            IsShowLog = pack.IsShowLog;
-            IsShowWarning = pack.IsShowWarning;
-            IsShowError = pack.IsShowError;
-            IsClearOnPlay = pack.IsClearOnPlay;
-            _writeLogFileInEditor = pack.WriteFileInEditor;
-        }
-
-        public static void AddNewLogItem(TempLogItem log)
-        {
-            switch (log.LogType)
-            {
-                case LogType.Error:
-                    ErrorLogCount++;
-                    break;
-                case LogType.Assert:
-                    ErrorLogCount++;
-                    break;
-                case LogType.Warning:
-                    WarningLogCount++;
-                    break;
-                case LogType.Log:
-                    InfoLogCount++;
-                    break;
-                case LogType.Exception:
-                    ErrorLogCount++;
-                    break;
-                default:
-                    break;
-            }
-            _needRefresh = true;
-            _logItems.Add(log);
-        }
-
-        public static void SetWriteFileFlag(bool value)
-        {
-            if (_writeLogFileInEditor == value)
-                return;
-
-            _writeLogFileInEditor = value;
-            if (Application.isPlaying)
-                TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
-
         }
 
         public static int GetLogsFromUnityConsole(LogType logType)
@@ -328,6 +210,10 @@ namespace CustomLog
         {
             _logItems = new List<TempLogItem>();
 
+            PropertyInfo flagProperty = null;
+            flagProperty = UnityLogEntries.GetProperty("consoleFlags");
+
+            object consoleFlagObj = flagProperty.GetValue(null);
             // to capture the logs already in Unity Console
             InfoLogCount = GetLogsFromUnityConsole(LogType.Log);
             WarningLogCount = GetLogsFromUnityConsole(LogType.Warning);
@@ -339,8 +225,127 @@ namespace CustomLog
             setall.Invoke(null, new object[] { WARNING_FLAG, IsShowWarning });
             setall.Invoke(null, new object[] { ERROR_FLAG, IsShowError });
 
+            flagProperty.SetValue(null, consoleFlagObj);
+
             //Debug.Log($"loaded logs {m_logItems.Count}");
             //Debug.Log($"log count:\ninfo {InfoLogCount}\nwarninvg {WarningLogCount}\nerror {ErrorLogCount}");
+        }
+
+        #endregion
+
+        [InitializeOnLoadMethod]
+        public static void InitLogManager()
+        {
+            InfoLogCount = WarningLogCount = ErrorLogCount = 0;
+            TempLogManagerHelper.LoadLogManagerSettingFile(out var settingPack);
+            // Debug.Log("load editor log manager setting");
+            _currentPack = new TempLogManagerSettingPack(settingPack);
+            ApplySettingPack(in settingPack);
+
+            TempLogManager.InitLogManager();
+            TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
+            _isCustomLogWindowEnabled = (null != TempConsoleWindow.Instance);
+            
+            GetLogsOfromUnityConsole();
+            TempConsoleWindow.OnTempConsoleCreated += OnTempConsoleCreated;
+            TempConsoleWindow.OnTempConsoleDestroyed += OnTempConsoleDestroyed;
+            AssemblyReloadEvents.beforeAssemblyReload += SaveSetting;
+
+            _updateTime = 0;
+            _needRefresh = false;
+
+            TempLogManager.OnLogItemCreated -= AddNewLogItem;
+            TempLogManager.OnLogItemCreated += AddNewLogItem;
+            TempLogManager.InitLogManager();
+
+            EditorApplication.update -= EditorTick;
+            EditorApplication.update += EditorTick;
+            EditorApplication.quitting -= OnEditorQuitting;
+            EditorApplication.quitting += OnEditorQuitting;
+            // Debug.Log("Editor LogManager Inited");
+        }
+
+        public static void SetSelectedItem(TempLogItem nextSelectedItem)
+        {
+            _selectedItem = nextSelectedItem;
+        }
+
+        public static void GetLogs(ref List<TempLogItem> logs)
+        {
+            // TODO : do not new a list everytime, cache 1
+            logs.Clear();
+
+            int flag = 0;
+            if (IsShowLog)
+                flag = flag | LOG_FLAG;
+            if (IsShowWarning)
+                flag = flag | WARNING_FLAG;
+            if (IsShowError)
+                flag = flag | ERROR_FLAG;
+
+            for (int i = 0; i < _logItems.Count; i++)
+            {
+                if ((flag & _logItems[i].LogTypeFlag) != 0)
+                    logs.Add(_logItems[i]);
+            }
+        }
+
+        public static void ClearLogs()
+        {
+            _selectedItem = null;
+            InfoLogCount = 0;
+            WarningLogCount = 0;
+            ErrorLogCount = 0;
+            _logItems.Clear();
+            if (IsLogCustomWindowEnabled)
+                ClearUnityLogConsole();
+            _needRefresh = true;
+        }
+
+        public static void ApplySettingPack(in TempLogManagerSettingPack pack)
+        {
+            IsShowLog = pack.IsShowLog;
+            IsShowWarning = pack.IsShowWarning;
+            IsShowError = pack.IsShowError;
+            IsClearOnPlay = pack.IsClearOnPlay;
+            _writeLogFileInEditor = pack.WriteFileInEditor;
+        }
+
+        public static void AddNewLogItem(TempLogItem log)
+        {
+            switch (log.LogType)
+            {
+                case LogType.Error:
+                    ErrorLogCount++;
+                    break;
+                case LogType.Assert:
+                    ErrorLogCount++;
+                    break;
+                case LogType.Warning:
+                    WarningLogCount++;
+                    break;
+                case LogType.Log:
+                    InfoLogCount++;
+                    break;
+                case LogType.Exception:
+                    ErrorLogCount++;
+                    break;
+                default:
+                    break;
+            }
+            _needRefresh = true;
+            _logItems.Add(log);
+        }
+
+        public static void SetWriteFileFlag(bool value)
+        {
+            if (_writeLogFileInEditor == value)
+                return;
+
+            _writeLogFileInEditor = value;
+            if (Application.isPlaying)
+                TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
+
         }
 
         private static void OnCodeCompileStart(object obj)
@@ -375,10 +380,21 @@ namespace CustomLog
             TempLogManagerHelper.SaveLogManagerSettingFile(_currentPack);
         }
 
+        private static void OnTempConsoleDestroyed()
+        {
+            _isCustomLogWindowEnabled = false;
+            SaveSetting();
+        }
+
+        private static void OnTempConsoleCreated()
+        {
+            _isCustomLogWindowEnabled = true;
+        }
+
         private static void OnEditorQuitting()
         {
             SaveSetting();
-            TempConsoleWindow.OnTempConsoleClosed -= SaveSetting;
+            TempConsoleWindow.OnTempConsoleDestroyed -= SaveSetting;
             AssemblyReloadEvents.beforeAssemblyReload -= SaveSetting;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.quitting -= OnEditorQuitting;

@@ -212,8 +212,8 @@ namespace CustomLog
             // TODO : to create a TempLogManagerData
             //Application.persistentDataPath
             string jsonStr = JsonUtility.ToJson(pack);
-            //Debug.Log($"wanna save log manager setting: \n{jsonStr}");
             UnityEditor.EditorPrefs.SetString(EDITOR_LOG_SETTING_KEY, jsonStr);
+            Debug.Log($"save log manager setting: \n{jsonStr}");
         }
 
         public static void LoadLogManagerSettingFile(out TempLogManagerSettingPack pack)

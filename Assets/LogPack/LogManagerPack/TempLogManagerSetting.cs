@@ -20,6 +20,8 @@ namespace CustomLog
 
         public int[] m_categoryForUnShow;
 
+        public bool HasValue;
+
         public TempLogManagerSettingPack(int[] catesUnshow = null)
         {
             if (null == catesUnshow)
@@ -33,21 +35,40 @@ namespace CustomLog
             IsClearOnPlay = false;
             IsErrorPause = false;
             WriteFileInEditor = false;
+            HasValue = true;
         }
 
         public TempLogManagerSettingPack(in TempLogManagerSettingPack pack)
         {
-            IsShowLog = pack.IsShowLog;
-            IsShowWarning = pack.IsShowWarning;
-            IsShowError = pack.IsShowError;
+            if (pack.HasValue)
+            {
+                IsShowLog = pack.IsShowLog;
+                IsShowWarning = pack.IsShowWarning;
+                IsShowError = pack.IsShowError;
 
-            IsClearOnPlay = pack.IsClearOnPlay;
-            IsErrorPause = pack.IsErrorPause;
+                IsClearOnPlay = pack.IsClearOnPlay;
+                IsErrorPause = pack.IsErrorPause;
 
-            m_categoryForUnShow = new int[pack.m_categoryForUnShow.Length];
-            Array.Copy(pack.m_categoryForUnShow, m_categoryForUnShow, pack.m_categoryForUnShow.Length);
+                m_categoryForUnShow = new int[pack.m_categoryForUnShow.Length];
+                Array.Copy(pack.m_categoryForUnShow, m_categoryForUnShow, pack.m_categoryForUnShow.Length);
 
-            WriteFileInEditor = pack.WriteFileInEditor;
+                WriteFileInEditor = pack.WriteFileInEditor;
+            }
+            else
+            {
+                IsShowLog = true;
+                IsShowWarning = true;
+                IsShowError = true;
+
+                IsClearOnPlay = false;
+                IsErrorPause = false;
+
+                m_categoryForUnShow = Array.Empty<int>();
+
+                WriteFileInEditor = false;
+            }
+
+            HasValue = true;
         }
 
         public string GetSettingPackString()

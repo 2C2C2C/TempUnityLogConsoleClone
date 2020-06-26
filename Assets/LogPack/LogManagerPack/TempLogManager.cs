@@ -23,6 +23,8 @@ public static class TempLogManager
     private static readonly string LOG_FILE_NAME = "LogFile";
     private static bool _writeLogFile = true;
 
+    private static string _currentLogFileName = null;
+
 #if UNITY_EDITOR
     public static event Action<TempLogItem> OnLogItemCreated;
 #endif
@@ -144,6 +146,21 @@ public static class TempLogManager
 #endif
 
     #endregion
+
+    public static void ClearLogFiles()
+    {
+        string folder = Application.persistentDataPath;
+        string[] filePathes = null;
+        filePathes = Directory.GetFiles(folder);
+        for (int i = 0; i < filePathes.Length; i++)
+        {
+            if (_writeLogFile && filePathes[i] == _currentLogFileName)
+                continue;
+
+            File.Delete(filePathes[i]);
+        }
+        Debug.Log("delete all log files");
+    }
 
     public static void SetFlagOFWriteFile(bool value)
     {
@@ -286,6 +303,7 @@ public static class TempLogManager
 
         string path = null;
         path = $"{Application.persistentDataPath}/{LOG_FILE_NAME}_{System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}.txt";
+        _currentLogFileName = path;
         _logFileWriter = new StreamWriter(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite), System.Text.UTF8Encoding.Default);
         _logFileWriter.WriteLine($"Game launch");
         _logFileWriter.WriteLine($"Time : {System.DateTime.Now.ToString()}");
