@@ -228,10 +228,20 @@ namespace CustomLog
             GUILayout.EndArea();
         }
 
-        private void DrawUpperPanel1()
+        private void DrawUpperPanel()
         {
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
-            if (m_prevCount < m_currentShowCount)
+
+            float scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth;
+            Rect scrollbarRect = new Rect(m_upperPanel.x + m_upperPanel.width - scrollbarWidth, m_upperPanel.y, scrollbarWidth, m_upperPanel.height);
+            Rect currentRect = new Rect(m_upperPanel.x, m_upperPanel.y, m_upperPanel.width - scrollbarWidth, m_upperPanel.height);
+            float viewportHeight = m_upperPanel.height;
+            int elementCount = m_currentShowCount;
+            int showCount = Mathf.CeilToInt(currentRect.height / LOG_ITEM_HEIGHT);
+            showCount = showCount > elementCount ? elementCount : showCount;
+
+            // check for auto scroll
+            if (showCount < m_currentShowCount && m_prevCount < m_currentShowCount)
             {
                 if (m_isAutoScroll)
                 {
@@ -254,18 +264,11 @@ namespace CustomLog
             {
                 m_isAutoScroll = true;
             }
-             m_prevCount = m_currentShowCount;
-
-            float scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth;
-            Rect scrollbarRect = new Rect(m_upperPanel.x + m_upperPanel.width - scrollbarWidth, m_upperPanel.y, scrollbarWidth, m_upperPanel.height);
-            Rect currentRect = new Rect(m_upperPanel.x, m_upperPanel.y, m_upperPanel.width - scrollbarWidth, m_upperPanel.height);
-            float viewportHeight = m_upperPanel.height;
-            int elementCount = m_currentShowCount;
+            m_prevCount = m_currentShowCount;
 
             GUI.BeginClip(currentRect); // to clip the overflow stuff
             int indexOffset = Mathf.FloorToInt(m_scrollPosition / LOG_ITEM_HEIGHT);
-            int showCount = Mathf.CeilToInt(currentRect.height / LOG_ITEM_HEIGHT);
-            showCount = showCount > elementCount ? elementCount : showCount;
+
             float startPosY = (indexOffset * LOG_ITEM_HEIGHT) - m_scrollPosition;
 
             for (int i = 0; i < showCount; i++)
@@ -309,8 +312,12 @@ namespace CustomLog
             int controlId = GUIUtility.GetControlID(FocusType.Passive);
             if (EventType.ScrollWheel == Event.current.GetTypeForControl(controlId))
             {
-                m_scrollPosition = Mathf.Clamp(m_scrollPosition + Event.current.delta.y * scrollSensitivity, 0, maxScrollPos);
-                Event.current.Use();
+                Vector2 mousePos = Event.current.mousePosition;
+                if (mousePos.x >= m_upperPanel.x && mousePos.y >= m_upperPanel.y && mousePos.x <= m_upperPanel.width && mousePos.y < m_upperPanel.height)
+                {
+                    m_scrollPosition = Mathf.Clamp(m_scrollPosition + Event.current.delta.y * scrollSensitivity, 0, maxScrollPos);
+                    Event.current.Use();
+                }
             }
 
         }
@@ -570,7 +577,7 @@ namespace CustomLog
             }
 
             DrawMenuUpperBar();
-            DrawUpperPanel1();
+            DrawUpperPanel();
             DrawLowerPanel();
             DrawResizer();
 
