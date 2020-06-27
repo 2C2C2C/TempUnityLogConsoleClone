@@ -22,11 +22,14 @@ namespace CustomLog
         private Rect m_lowerPanel = default;
         private Rect m_resizer = default;
 
-        private readonly float MENU_BAR_HEIGHT = 20.0f;
-        private readonly float LOG_FLAG_SIZE = 50.0f;
+        private const float MENU_BAR_HEIGHT = 20.0f;
+        private const float LOG_FLAG_SIZE = 50.0f;
         private float m_upperSizeRatio = 0.5f;
         private readonly float RESIZER_HEIGHT = 4.0f;
         private float GetPanelGroupHeight() => position.height - MENU_BAR_HEIGHT;
+        private const float LOG_ITEM_HEIGHT = 28.0f;
+        private const float LOG_ITEM_ICON_WIDTH = 40.0f;
+        private float m_scrollPosition = 0.0f;
         private bool m_isResizing = false;
 
         private bool m_isClearOnPlay = false;
@@ -37,7 +40,7 @@ namespace CustomLog
         private bool m_isShowError = true;
         private bool m_isAutoScroll = true;
 
-        private Vector2 m_upperPanelScroll = default;
+        // private Vector2 m_upperPanelScroll = default;
         private Vector2 m_lowerPanelScroll = default;
 
         private GUIStyle m_panelStyle = default;
@@ -98,7 +101,7 @@ namespace CustomLog
         }
 
         [MenuItem("Window/Temp Log Window")]
-        static void OpenWindow()
+        private static void OpenWindow()
         {
             TempConsoleWindow window = GetWindow<TempConsoleWindow>();
             Texture2D icon = EditorGUIUtility.Load("icons/UnityEditor.ConsoleWindow.png") as Texture2D;
@@ -106,6 +109,58 @@ namespace CustomLog
         }
 
         #region draw methods
+
+        private bool DrawLogItem(in Rect rect, in TempLogItem logItem, bool isOdd, bool isSelected)
+        {
+            if (isSelected)
+            {
+                m_boxItemStyle.normal.background = m_boxBgSelected;
+                m_boxIconStyle.normal.background = m_boxBgSelected;
+            }
+            else
+            {
+                if (isOdd)
+                {
+                    m_boxItemStyle.normal.background = m_boxBgOdd;
+                    m_boxIconStyle.normal.background = m_boxBgOdd;
+                }
+                else
+                {
+                    m_boxItemStyle.normal.background = m_boxBgEven;
+                    m_boxIconStyle.normal.background = m_boxBgEven;
+                }
+            }
+
+            switch (logItem.LogType)
+            {
+                case LogType.Error:
+                    m_boxIcon = m_errorIcon;
+                    break;
+                case LogType.Assert:
+                    m_boxIcon = m_errorIcon;
+                    break;
+                case LogType.Exception:
+                    m_boxIcon = m_errorIcon;
+                    break;
+                case LogType.Warning:
+                    m_boxIcon = m_warningIcon;
+                    break;
+                case LogType.Log:
+                    m_boxIcon = m_infoIcon;
+                    break;
+
+                default:
+                    break;
+            }
+
+            bool result1 = true;
+            bool result2 = true;
+            Rect iconRect = new Rect(rect.x, rect.y, LOG_ITEM_ICON_WIDTH, LOG_ITEM_HEIGHT);
+            Rect logRect = new Rect(rect.x + iconRect.width, rect.y, rect.width - LOG_ITEM_ICON_WIDTH, LOG_ITEM_HEIGHT);
+            result1 = GUI.Button(iconRect, m_boxIcon, m_boxIconStyle);
+            result2 = GUI.Button(logRect, $"[{ logItem.LogTime}] {logItem.LogMessage}", m_boxItemStyle); //, GUILayout.ExpandWidth(true)
+            return result1 || result2;
+        }
 
         private void DrawMenuUpperBar()
         {
@@ -173,16 +228,14 @@ namespace CustomLog
             GUILayout.EndArea();
         }
 
-        private void DrawUpperPanel()
+        private void DrawUpperPanel1()
         {
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
-            GUILayout.BeginArea(m_upperPanel, m_panelStyle);
-            // re-adjust scroller position
             if (m_prevCount < m_currentShowCount)
             {
                 if (m_isAutoScroll)
                 {
-                    m_upperPanelScroll.y = (m_currentShowCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
+                    m_scrollPosition = (m_currentShowCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
                     m_isAutoScroll = false;
                 }
                 else
@@ -190,9 +243,9 @@ namespace CustomLog
                     float tempGap = (m_prevCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
                     if (tempGap > 0)
                     {
-                        if (tempGap - m_upperPanelScroll.y <= m_boxItemStyle.fixedHeight || m_isAutoScroll)
+                        if (tempGap - m_scrollPosition <= m_boxItemStyle.fixedHeight || m_isAutoScroll)
                         {
-                            m_upperPanelScroll.y = (m_currentShowCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
+                            m_scrollPosition = (m_currentShowCount * m_boxItemStyle.fixedHeight) - m_upperPanel.height;
                         }
                     }
                 }
@@ -201,18 +254,28 @@ namespace CustomLog
             {
                 m_isAutoScroll = true;
             }
+             m_prevCount = m_currentShowCount;
 
-            m_prevCount = m_currentShowCount;
-            m_upperPanelScroll = GUILayout.BeginScrollView(m_upperPanelScroll);
+            float scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth;
+            Rect scrollbarRect = new Rect(m_upperPanel.x + m_upperPanel.width - scrollbarWidth, m_upperPanel.y, scrollbarWidth, m_upperPanel.height);
+            Rect currentRect = new Rect(m_upperPanel.x, m_upperPanel.y, m_upperPanel.width - scrollbarWidth, m_upperPanel.height);
+            float viewportHeight = m_upperPanel.height;
+            int elementCount = m_currentShowCount;
 
-            // draw items
-            for (int i = 0; i < m_currentShowingItems.Count; i++)
+            GUI.BeginClip(currentRect); // to clip the overflow stuff
+            int indexOffset = Mathf.FloorToInt(m_scrollPosition / LOG_ITEM_HEIGHT);
+            int showCount = Mathf.CeilToInt(currentRect.height / LOG_ITEM_HEIGHT);
+            showCount = showCount > elementCount ? elementCount : showCount;
+            float startPosY = (indexOffset * LOG_ITEM_HEIGHT) - m_scrollPosition;
+
+            for (int i = 0; i < showCount; i++)
             {
-                if (DrawLogBox(m_currentShowingItems[i], i % 2 == 0, m_currentShowingItems[i].IsSelected))
+                Rect elementRect = new Rect(m_upperPanel.x, 0 + startPosY + i * LOG_ITEM_HEIGHT, currentRect.width, LOG_ITEM_HEIGHT);
+                if (DrawLogItem(elementRect, m_currentShowingItems[indexOffset + i], 0 == i % 2, m_currentShowingItems[indexOffset + i].IsSelected))
                 {
                     if (null != m_selectedLogItem)
                     {
-                        if (m_currentShowingItems[i] == m_selectedLogItem)
+                        if (m_currentShowingItems[indexOffset + i] == m_selectedLogItem)
                         {
                             // click a some one, open code
                             JumpToStackTop();
@@ -220,14 +283,14 @@ namespace CustomLog
                         else
                         {
                             m_selectedLogItem.IsSelected = false;
-                            m_selectedLogItem = m_currentShowingItems[i];
+                            m_selectedLogItem = m_currentShowingItems[indexOffset + i];
                             TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
                             m_selectedLogItem.IsSelected = true;
                         }
                     }
                     else
                     {
-                        m_selectedLogItem = m_currentShowingItems[i];
+                        m_selectedLogItem = m_currentShowingItems[indexOffset + i];
                         TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
                         m_selectedLogItem.IsSelected = true;
                     }
@@ -235,8 +298,21 @@ namespace CustomLog
                 }
             }
 
-            GUILayout.EndScrollView();
-            GUILayout.EndArea();
+            GUI.EndClip();
+
+            // do stuff for scroller
+            float scrollSensitivity = LOG_ITEM_HEIGHT;
+            float fullElementHeight = elementCount * LOG_ITEM_HEIGHT;
+            float maxScrollPos = (fullElementHeight > currentRect.height) ? (fullElementHeight - currentRect.height) : 0;
+
+            m_scrollPosition = Mathf.Max(0, GUI.VerticalScrollbar(scrollbarRect, m_scrollPosition, currentRect.height, 0, Mathf.Max(fullElementHeight, currentRect.height)));
+            int controlId = GUIUtility.GetControlID(FocusType.Passive);
+            if (EventType.ScrollWheel == Event.current.GetTypeForControl(controlId))
+            {
+                m_scrollPosition = Mathf.Clamp(m_scrollPosition + Event.current.delta.y * scrollSensitivity, 0, maxScrollPos);
+                Event.current.Use();
+            }
+
         }
 
         private void DrawLowerPanel()
@@ -320,63 +396,6 @@ namespace CustomLog
             EditorGUIUtility.AddCursorRect(m_resizer, MouseCursor.ResizeVertical);
         }
 
-        private bool DrawLogBox(in TempLogItem logItem, bool isOdd, bool isSelected)
-        {
-            if (isSelected)
-            {
-                m_boxItemStyle.normal.background = m_boxBgSelected;
-                m_boxIconStyle.normal.background = m_boxBgSelected;
-            }
-            else
-            {
-                if (isOdd)
-                {
-                    m_boxItemStyle.normal.background = m_boxBgOdd;
-                    m_boxIconStyle.normal.background = m_boxBgOdd;
-                }
-                else
-                {
-                    m_boxItemStyle.normal.background = m_boxBgEven;
-                    m_boxIconStyle.normal.background = m_boxBgEven;
-                }
-            }
-
-            switch (logItem.LogType)
-            {
-                case LogType.Error:
-                    m_boxIcon = m_errorIcon;
-                    break;
-                case LogType.Assert:
-                    m_boxIcon = m_errorIcon;
-                    break;
-                case LogType.Exception:
-                    m_boxIcon = m_errorIcon;
-                    break;
-                case LogType.Warning:
-                    m_boxIcon = m_warningIcon;
-                    break;
-                case LogType.Log:
-                    m_boxIcon = m_infoIcon;
-                    break;
-
-                default:
-                    break;
-            }
-
-            bool result1 = true;
-            bool result2 = true;
-
-            GUILayout.BeginHorizontal();
-            //GUILayoutUtility.GetRect(new GUIContent(m_boxIcon), m_boxIconStyle);
-            //GUITools.PopupLayout
-            //Rect boxIconRect = new Rect(, m_boxIconStyle.CalcSize); 
-            result1 = GUILayout.Button(new GUIContent(m_boxIcon), m_boxIconStyle);
-            result2 = GUILayout.Button(new GUIContent($"[{ logItem.LogTime}] {logItem.LogMessage}"), m_boxItemStyle, GUILayout.ExpandWidth(true));
-            GUILayout.EndHorizontal();
-
-            return result1 || result2;
-        }
-
         #endregion draw methods
 
         private void ProcessEvents(Event currentEvent)
@@ -433,8 +452,8 @@ namespace CustomLog
             //m_panelStyle.normal.background = GUI.skin.window.normal.background;
 
             m_boxIconStyle = new GUIStyle();
-            m_boxIconStyle.fixedHeight = 28.0f;
-            m_boxIconStyle.fixedWidth = 40.0f;
+            m_boxIconStyle.fixedHeight = LOG_ITEM_HEIGHT;
+            m_boxIconStyle.fixedWidth = LOG_ITEM_ICON_WIDTH;
 
             m_boxItemStyle = new GUIStyle();
             m_boxItemStyle.clipping = TextClipping.Clip;
@@ -551,7 +570,7 @@ namespace CustomLog
             }
 
             DrawMenuUpperBar();
-            DrawUpperPanel();
+            DrawUpperPanel1();
             DrawLowerPanel();
             DrawResizer();
 
