@@ -22,6 +22,8 @@ namespace CustomLog
 
         public bool HasValue;
 
+        public float UpperPanelSizeRatio;
+
         public TempLogManagerSettingPack(int[] catesUnshow = null)
         {
             if (null == catesUnshow)
@@ -36,6 +38,7 @@ namespace CustomLog
             IsErrorPause = false;
             WriteFileInEditor = false;
             HasValue = true;
+            UpperPanelSizeRatio = 0.5f;
         }
 
         public TempLogManagerSettingPack(in TempLogManagerSettingPack pack)
@@ -53,6 +56,7 @@ namespace CustomLog
                 Array.Copy(pack.m_categoryForUnShow, m_categoryForUnShow, pack.m_categoryForUnShow.Length);
 
                 WriteFileInEditor = pack.WriteFileInEditor;
+                UpperPanelSizeRatio = pack.UpperPanelSizeRatio;
             }
             else
             {
@@ -66,6 +70,7 @@ namespace CustomLog
                 m_categoryForUnShow = Array.Empty<int>();
 
                 WriteFileInEditor = false;
+                UpperPanelSizeRatio = 0.5f;
             }
 
             HasValue = true;

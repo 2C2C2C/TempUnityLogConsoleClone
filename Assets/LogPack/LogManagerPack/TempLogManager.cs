@@ -38,7 +38,7 @@ public static class TempLogManager
         Application.quitting += OnGameQuit;
 
 #if UNITY_STANDALONE
-        if (m_writeLogFile)
+        if (_writeLogFile)
             FreshFileWriter();
 #endif
         _normalLogCount = 0;

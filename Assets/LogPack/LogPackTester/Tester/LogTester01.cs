@@ -10,11 +10,6 @@ public class LogTester01 : MonoBehaviour
     private LogType m_logType = default;
     [SerializeField]
     private string m_logMsg = "this \n is \n magic\n to \n test";
-    // [Button("test custom log")]
-    // public void TestCustomLog()
-    // {
-    //     //TempLogManager.CreateLog(in m_logMsg, m_logType);
-    // }
 
     [Button("test normal log")]
     public void TestNormalLog()

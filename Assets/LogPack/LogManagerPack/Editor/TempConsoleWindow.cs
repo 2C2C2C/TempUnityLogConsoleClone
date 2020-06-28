@@ -33,7 +33,6 @@ namespace CustomLog
         private bool m_isResizing = false;
 
         private bool m_isClearOnPlay = false;
-        // private bool m_isErrorPause = false;
         private bool m_writeFileInEditorMode = false;
         private bool m_isShowLog = true;
         private bool m_isShowWarning = true;
@@ -232,6 +231,9 @@ namespace CustomLog
         {
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
 
+            // draw bk
+            GUI.DrawTexture(m_upperPanel, m_boxItemStyle.normal.background);
+
             float scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth;
             Rect scrollbarRect = new Rect(m_upperPanel.x + m_upperPanel.width - scrollbarWidth, m_upperPanel.y, scrollbarWidth, m_upperPanel.height);
             Rect currentRect = new Rect(m_upperPanel.x, m_upperPanel.y, m_upperPanel.width - scrollbarWidth, m_upperPanel.height);
@@ -271,14 +273,19 @@ namespace CustomLog
 
             float startPosY = (indexOffset * LOG_ITEM_HEIGHT) - m_scrollPosition;
 
+            int index = 0;
             for (int i = 0; i < showCount; i++)
             {
                 Rect elementRect = new Rect(m_upperPanel.x, 0 + startPosY + i * LOG_ITEM_HEIGHT, currentRect.width, LOG_ITEM_HEIGHT);
-                if (DrawLogItem(elementRect, m_currentShowingItems[indexOffset + i], 0 == i % 2, m_currentShowingItems[indexOffset + i].IsSelected))
+                index = indexOffset + i;
+                // TODO : fix GUI CLIP ERROR
+                if (index < 0 || index > m_currentShowingItems.Count - 1)
+                    break;
+                if (DrawLogItem(elementRect, m_currentShowingItems[index], 0 == i % 2, m_currentShowingItems[index].IsSelected))
                 {
                     if (null != m_selectedLogItem)
                     {
-                        if (m_currentShowingItems[indexOffset + i] == m_selectedLogItem)
+                        if (m_currentShowingItems[index] == m_selectedLogItem)
                         {
                             // click a some one, open code
                             JumpToStackTop();
@@ -286,7 +293,7 @@ namespace CustomLog
                         else
                         {
                             m_selectedLogItem.IsSelected = false;
-                            m_selectedLogItem = m_currentShowingItems[indexOffset + i];
+                            m_selectedLogItem = m_currentShowingItems[index];
                             TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
                             m_selectedLogItem.IsSelected = true;
                         }
@@ -333,7 +340,6 @@ namespace CustomLog
             string logDetail = null;
             string[] logDetailMutiLine = null;
 
-            // TODO : code clean here
             string pathline = "";
             string tempCase = ".cs:";
             string path = string.Empty;
@@ -343,7 +349,7 @@ namespace CustomLog
             if (null != m_selectedLogItem)
             {
                 logDetail = m_selectedLogItem.LogStackTrace;
-                GUILayout.TextArea(string.Format("{0}\n", m_selectedLogItem.LogMessage, m_textAreaStyle));
+                GUILayout.TextArea(string.Format("{0}\n", m_selectedLogItem.LogMessage), m_textAreaStyle);
 
                 logDetailMutiLine = logDetail.Split('\n');
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
@@ -407,6 +413,16 @@ namespace CustomLog
 
         private void ProcessEvents(Event currentEvent)
         {
+            // check if mouse in panel
+            Vector2 mousePos = currentEvent.mousePosition; // pos for this panel
+            Rect selfRect = this.position;
+            if (mousePos.x < 0 || mousePos.y < 0 || mousePos.x > selfRect.width || mousePos.y > selfRect.height)
+            {
+                // mouse is not on the pancel. finish all event 
+                m_isResizing = false;
+                return;
+            }
+
             if (EventType.MouseDown == currentEvent.type)
             {
                 // if press mouse left in resizer
@@ -439,6 +455,7 @@ namespace CustomLog
                 float pos = currentEvent.mousePosition.y - MENU_BAR_HEIGHT;
                 m_upperSizeRatio = pos / GetPanelGroupHeight();
                 m_upperSizeRatio = Mathf.Clamp(m_upperSizeRatio, 0.5f, 0.8f);
+                TempLogManagerForUnityEditor.UpperSizeRatio = m_upperSizeRatio;
                 Repaint();
             }
         }
@@ -549,7 +566,7 @@ namespace CustomLog
 
         private void Awake()
         {
-            m_upperSizeRatio = 0.5f;
+            m_upperSizeRatio = TempLogManagerForUnityEditor.GetInitPack().UpperPanelSizeRatio;
             OnTempConsoleCreated?.Invoke();
             _instance = this;
         }

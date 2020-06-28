@@ -65,6 +65,7 @@ namespace CustomLog
                 _isShowError = value;
             }
         }
+        public static float UpperSizeRatio { get; set; }
 
         private static TempLogManagerSettingPack _currentPack = default;
         public static TempLogManagerSettingPack GetInitPack() => _currentPack;
@@ -245,7 +246,7 @@ namespace CustomLog
             TempLogManager.InitLogManager();
             TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
             _isCustomLogWindowEnabled = (null != TempConsoleWindow.Instance);
-            
+
             GetLogsOfromUnityConsole();
             TempConsoleWindow.OnTempConsoleCreated += OnTempConsoleCreated;
             TempConsoleWindow.OnTempConsoleDestroyed += OnTempConsoleDestroyed;
@@ -376,6 +377,7 @@ namespace CustomLog
             _currentPack.IsShowWarning = IsShowWarning;
             _currentPack.IsShowError = IsShowError;
             _currentPack.WriteFileInEditor = _writeLogFileInEditor;
+            _currentPack.UpperPanelSizeRatio = UpperSizeRatio;
 
             TempLogManagerHelper.SaveLogManagerSettingFile(_currentPack);
         }
