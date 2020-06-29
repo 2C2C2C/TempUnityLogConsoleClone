@@ -51,7 +51,6 @@ namespace TempDraw
             else
                 GUI.Label(iconRect, m_warningIconSmall);
 
-
             var textAreaStyle = new GUIStyle();
             textAreaStyle.normal.textColor = new Color(0.9f, 0.9f, 0.9f);
             textAreaStyle.normal.background = EditorGUIUtility.Load("builtin skins/darkskin/images/projectbrowsericonareabg.png") as Texture2D;

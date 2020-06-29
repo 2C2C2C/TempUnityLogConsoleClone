@@ -13,7 +13,6 @@ namespace CustomLog
         // TODO : add this later
         // public readonly UnityEngine.Object ContextObject = null;
 
-
         public TempLogItem(string message, string stackTrace, LogType type, int logFlag, bool isSelected = false)
         {
             IsSelected = isSelected;

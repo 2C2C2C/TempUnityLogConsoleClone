@@ -38,8 +38,13 @@ namespace CustomLog
             get => _isShowLog;
             set
             {
-                _needRefresh = _needRefresh || (value != _isShowLog);
-                _needSave = _needSave || (value != _isShowLog);
+                bool changed = (value != _isShowLog);
+                if (changed)
+                {
+                    _needRefresh = true;
+                    _needSave = true;
+                    ShowLogTypeFlag = value ? (ShowLogTypeFlag | LOG_FLAG) : (ShowLogTypeFlag ^ LOG_FLAG);
+                }
                 _isShowLog = value;
             }
         }
@@ -49,8 +54,13 @@ namespace CustomLog
             get => _isShowWarning;
             set
             {
-                _needRefresh = _needRefresh || (value != _isShowWarning);
-                _needSave = _needSave || (value != _isShowWarning);
+                bool changed = (value != _isShowWarning);
+                if (changed)
+                {
+                    _needRefresh = true;
+                    _needSave = true;
+                    ShowLogTypeFlag = value ? (ShowLogTypeFlag | WARNING_FLAG) : (ShowLogTypeFlag ^ WARNING_FLAG);
+                }
                 _isShowWarning = value;
             }
         }
@@ -60,11 +70,17 @@ namespace CustomLog
             get => _isShowError;
             set
             {
-                _needRefresh = _needRefresh || (value != _isShowError);
-                _needSave = _needSave || (value != _isShowError);
+                bool changed = (value != _isShowError);
+                if (changed)
+                {
+                    _needRefresh = true;
+                    _needSave = true;
+                    ShowLogTypeFlag = value ? (ShowLogTypeFlag | ERROR_FLAG) : (ShowLogTypeFlag ^ ERROR_FLAG);
+                }
                 _isShowError = value;
             }
         }
+        public static int ShowLogTypeFlag { get; set; }
         public static float UpperSizeRatio { get; set; }
 
         private static TempLogManagerSettingPack _currentPack = default;
@@ -80,22 +96,22 @@ namespace CustomLog
 
         private static bool _needSave = false;
         private static int _autoSaveTimer = 0;
-        private static readonly int SAVE_INTERVAL = 50;
+        private static readonly int SAVE_INTERVAL = 200;
 
         public static event Action OnLogsUpdated;
 
         #region to get unity console and logs
 
-        static readonly int LOG_FLAG = 1 << 7;
-        static readonly int WARNING_FLAG = 1 << 8;
-        static readonly int ERROR_FLAG = 1 << 9;
-        static readonly int CLEAR_ON_PLAY_FLAG = 1 << 1;
+        private static readonly int LOG_FLAG = 1 << 7;
+        private static readonly int WARNING_FLAG = 1 << 8;
+        private static readonly int ERROR_FLAG = 1 << 9;
+        private static readonly int CLEAR_ON_PLAY_FLAG = 1 << 1;
 
-        static Type m_entriesType = null;
-        static Type m_entryType = null;
-        static Type m_consoleWindow = null;
+        private static Type m_entriesType = null;
+        private static Type m_entryType = null;
+        private static Type m_consoleWindow = null;
 
-        static Type UnityConsoleWindow
+        private static Type UnityConsoleWindow
         {
             get
             {
@@ -107,7 +123,7 @@ namespace CustomLog
             }
         }
 
-        static Type UnityLogEntry
+        private static Type UnityLogEntry
         {
             get
             {
@@ -119,7 +135,7 @@ namespace CustomLog
             }
         }
 
-        static Type UnityLogEntries
+        private static Type UnityLogEntries
         {
             get
             {
@@ -275,18 +291,9 @@ namespace CustomLog
         {
             // TODO : do not new a list everytime, cache 1
             logs.Clear();
-
-            int flag = 0;
-            if (IsShowLog)
-                flag = flag | LOG_FLAG;
-            if (IsShowWarning)
-                flag = flag | WARNING_FLAG;
-            if (IsShowError)
-                flag = flag | ERROR_FLAG;
-
             for (int i = 0; i < _logItems.Count; i++)
             {
-                if ((flag & _logItems[i].LogTypeFlag) != 0)
+                if ((ShowLogTypeFlag & _logItems[i].LogTypeFlag) != 0)
                     logs.Add(_logItems[i]);
             }
         }
@@ -305,9 +312,7 @@ namespace CustomLog
 
         public static void ApplySettingPack(in TempLogManagerSettingPack pack)
         {
-            IsShowLog = pack.IsShowLog;
-            IsShowWarning = pack.IsShowWarning;
-            IsShowError = pack.IsShowError;
+            ShowLogTypeFlag = pack.LogTypeFlag;
             IsClearOnPlay = pack.IsClearOnPlay;
             _writeLogFileInEditor = pack.WriteFileInEditor;
         }
@@ -349,6 +354,16 @@ namespace CustomLog
 
         }
 
+        public static void SaveSetting()
+        {
+            _currentPack.IsClearOnPlay = IsClearOnPlay;
+            _currentPack.WriteFileInEditor = _writeLogFileInEditor;
+            _currentPack.UpperPanelSizeRatio = UpperSizeRatio;
+            _currentPack.LogTypeFlag = ShowLogTypeFlag;
+
+            TempLogManagerHelper.SaveLogManagerSettingFile(_currentPack);
+        }
+
         private static void OnCodeCompileStart(object obj)
         {
             if (!_isCompiling)
@@ -368,18 +383,6 @@ namespace CustomLog
 
             if (PlayModeStateChange.ExitingPlayMode == playMode)
                 TempLogManager.EndWriteLogFile();
-        }
-
-        private static void SaveSetting()
-        {
-            _currentPack.IsClearOnPlay = IsClearOnPlay;
-            _currentPack.IsShowLog = IsShowLog;
-            _currentPack.IsShowWarning = IsShowWarning;
-            _currentPack.IsShowError = IsShowError;
-            _currentPack.WriteFileInEditor = _writeLogFileInEditor;
-            _currentPack.UpperPanelSizeRatio = UpperSizeRatio;
-
-            TempLogManagerHelper.SaveLogManagerSettingFile(_currentPack);
         }
 
         private static void OnTempConsoleDestroyed()
@@ -421,7 +424,6 @@ namespace CustomLog
             }
 
         }
-
     }
 }
 #endif

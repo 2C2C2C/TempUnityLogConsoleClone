@@ -235,26 +235,33 @@ public static class TempLogManager
     private static void LogMessageReceived(string message, string stackTrace, LogType type)
     {
         TempLogItem log = null;
+        int logTypeFlag = 0;
         switch (type)
         {
             case LogType.Error:
+                logTypeFlag = ERROR_FLAG;
                 _errorLogCount++;
                 break;
             case LogType.Assert:
                 type = LogType.Error;
+                logTypeFlag = ERROR_FLAG;
                 _errorLogCount++;
                 break;
             case LogType.Warning:
+                logTypeFlag = WARNING_FLAG;
                 _warningLogCount++;
                 break;
             case LogType.Log:
+                logTypeFlag = LOG_FLAG;
                 _normalLogCount++;
                 break;
             case LogType.Exception:
+                logTypeFlag = ERROR_FLAG;
                 type = LogType.Error;
                 _errorLogCount++;
                 break;
             default:
+                logTypeFlag = ERROR_FLAG;
                 type = LogType.Error;
                 _errorLogCount++;
                 break;
@@ -268,7 +275,7 @@ public static class TempLogManager
                 string logCateStr = message;
                 logCateStr = logCateStr.Remove(0, MANAGER_TAG.Length);
                 logCateStr = logCateStr.Substring(logCateStr.IndexOf('[') + 1, logCateStr.IndexOf(']') - logCateStr.IndexOf('[') - 1);
-                log = new TempLogItem(message, stackTrace, type, 0);
+                log = new TempLogItem(message, stackTrace, type, logTypeFlag);
             }
             catch (Exception e) // 
             {

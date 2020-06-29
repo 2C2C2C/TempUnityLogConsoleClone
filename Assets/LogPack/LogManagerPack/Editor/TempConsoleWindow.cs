@@ -7,11 +7,12 @@ using UnityEngine;
 
 namespace CustomLog
 {
-    public class TempConsoleWindow : EditorWindow
+    public class TempConsoleWindow : EditorWindow, IHasCustomMenu
     {
         private static readonly string WindowName = "Temp Console Window";
         private static TempConsoleWindow _instance = null;
         public static TempConsoleWindow Instance => _instance;
+        public static readonly Vector2 MIN_WINDOW_SIZE = new Vector2(600.0f, 400.0f);
 
         private bool m_hasInited = false;
         private bool m_needRefresh = false;
@@ -39,7 +40,7 @@ namespace CustomLog
         private bool m_isShowError = true;
         private bool m_isAutoScroll = true;
 
-        // private Vector2 m_upperPanelScroll = default;
+        private GUIContent m_savePreferItem = default;
         private Vector2 m_lowerPanelScroll = default;
 
         private GUIStyle m_panelStyle = default;
@@ -51,7 +52,6 @@ namespace CustomLog
 
         private List<TempLogItem> m_currentShowingItems = null;
         private TempLogItem m_selectedLogItem = null;
-        private HashSet<LogType> m_logTypeForUnshow = null;
 
         private int m_normalLogCount = 0;
         private int m_warningLogCount = 0;
@@ -99,12 +99,18 @@ namespace CustomLog
             TempLogManagerForUnityEditor.ClearLogs();
         }
 
+        public void AddItemsToMenu(GenericMenu menu)
+        {
+            menu.AddItem(m_savePreferItem, false, CallSavePrefer);
+        }
+
         [MenuItem("Window/Temp Log Window")]
-        private static void OpenWindow()
+        public static void OpenWindow()
         {
             TempConsoleWindow window = GetWindow<TempConsoleWindow>();
             Texture2D icon = EditorGUIUtility.Load("icons/UnityEditor.ConsoleWindow.png") as Texture2D;
             window.titleContent = new GUIContent(WindowName, icon);
+            window.minSize = MIN_WINDOW_SIZE;
         }
 
         #region draw methods
@@ -177,8 +183,6 @@ namespace CustomLog
 
             m_isClearOnPlay = GUILayout.Toggle(TempLogManagerForUnityEditor.IsClearOnPlay, new GUIContent("Clear On Play"), EditorStyles.toolbarButton, GUILayout.Width(80.0f));
             TempLogManagerForUnityEditor.IsClearOnPlay = m_isClearOnPlay;
-            // m_isErrorPause = GUILayout.Toggle(LogManagerForUnityEditor.IsErrorPause, new GUIContent("Error Pause"), EditorStyles.toolbarButton, GUILayout.Width(70.0f));
-            // LogManagerForUnityEditor.IsErrorPause = m_isErrorPause;
 
             m_writeFileInEditorMode = GUILayout.Toggle(m_writeFileInEditorMode, new GUIContent("Write Log File"), EditorStyles.toolbarButton, GUILayout.Width(120.0f));
             TempLogManagerForUnityEditor.SetWriteFileFlag(m_writeFileInEditorMode);
@@ -195,6 +199,7 @@ namespace CustomLog
             m_warningLogCount = Mathf.Clamp(TempLogManagerForUnityEditor.WarningLogCount, 0, 100);
             m_errorLogCount = Mathf.Clamp(TempLogManagerForUnityEditor.ErrorLogCount, 0, 100);
 
+            int prevFlag = TempLogManagerForUnityEditor.ShowLogTypeFlag;
             m_isShowLog = GUILayout.Toggle(TempLogManagerForUnityEditor.IsShowLog, new GUIContent(TempLogManagerHelper.GetNumberStr(m_normalLogCount), m_infoIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
             m_isShowWarning = GUILayout.Toggle(TempLogManagerForUnityEditor.IsShowWarning, new GUIContent(TempLogManagerHelper.GetNumberStr(m_warningLogCount), m_warningIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
             m_isShowError = GUILayout.Toggle(TempLogManagerForUnityEditor.IsShowError, new GUIContent(TempLogManagerHelper.GetNumberStr(m_errorLogCount), m_errorIconSmall), EditorStyles.toolbarButton, GUILayout.Width(LOG_FLAG_SIZE));
@@ -202,26 +207,8 @@ namespace CustomLog
             TempLogManagerForUnityEditor.IsShowWarning = m_isShowWarning;
             TempLogManagerForUnityEditor.IsShowError = m_isShowError;
 
-            int prevCount = m_logTypeForUnshow.Count;
-            m_logTypeForUnshow.Clear();
-            if (!m_isShowLog)
-            {
-                m_logTypeForUnshow.Add(LogType.Log);
-            }
 
-            if (!m_isShowWarning)
-            {
-                m_logTypeForUnshow.Add(LogType.Warning);
-            }
-
-            if (!m_isShowError)
-            {
-                m_logTypeForUnshow.Add(LogType.Error);
-                m_logTypeForUnshow.Add(LogType.Assert);
-                m_logTypeForUnshow.Add(LogType.Exception);
-            }
-
-            m_needRefresh = m_needRefresh || (prevCount != m_logTypeForUnshow.Count);
+            m_needRefresh = m_needRefresh || (prevFlag != TempLogManagerForUnityEditor.ShowLogTypeFlag);
 
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -232,7 +219,7 @@ namespace CustomLog
             m_upperPanel = new Rect(0, MENU_BAR_HEIGHT, this.position.width, (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio);
 
             // draw bk
-            GUI.DrawTexture(m_upperPanel, m_boxItemStyle.normal.background);
+            GUI.DrawTexture(m_upperPanel, m_panelStyle.normal.background);
 
             float scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth;
             Rect scrollbarRect = new Rect(m_upperPanel.x + m_upperPanel.width - scrollbarWidth, m_upperPanel.y, scrollbarWidth, m_upperPanel.height);
@@ -400,12 +387,10 @@ namespace CustomLog
 
         private void DrawResizer()
         {
-            float yPos = (this.position.height - MENU_BAR_HEIGHT) * m_upperSizeRatio + MENU_BAR_HEIGHT;
+
+            float yPos = m_upperPanel.height + MENU_BAR_HEIGHT;
             m_resizer = new Rect(0, yPos, this.position.width, RESIZER_HEIGHT);
-
-            GUILayout.BeginArea(new Rect(m_resizer.position + (Vector2.up * RESIZER_HEIGHT), new Vector2(this.position.width, 2.0f)), m_resizerStyle);
-            GUILayout.EndArea();
-
+            EditorGUI.DrawRect(m_resizer, Color.white);
             EditorGUIUtility.AddCursorRect(m_resizer, MouseCursor.ResizeVertical);
         }
 
@@ -462,6 +447,8 @@ namespace CustomLog
 
         private void GetAssets()
         {
+            m_savePreferItem = new GUIContent("save prefer");
+
             m_infoIcon = EditorGUIUtility.Load("icons/console.infoicon.png") as Texture2D;
             m_infoIconSmall = EditorGUIUtility.Load("icons/console.infoicon.sml.png") as Texture2D;
             m_warningIcon = EditorGUIUtility.Load("icons/console.warnicon.png") as Texture2D;
@@ -522,6 +509,14 @@ namespace CustomLog
             Repaint();
         }
 
+        private void CallSavePrefer()
+        {
+            TempLogManagerForUnityEditor.UpperSizeRatio = m_upperSizeRatio;
+            TempLogManagerForUnityEditor.ShowLogTypeFlag = 0;
+
+            TempLogManagerForUnityEditor.SaveSetting();
+        }
+
         private void ContainerInit()
         {
             // set log show flag
@@ -529,28 +524,10 @@ namespace CustomLog
             m_isShowLog = TempLogManagerForUnityEditor.IsShowLog;
             m_isShowWarning = TempLogManagerForUnityEditor.IsShowWarning;
             m_isShowError = TempLogManagerForUnityEditor.IsShowError;
-            m_logTypeForUnshow = new HashSet<LogType>();
-            if (!m_isShowLog)
-            {
-                m_logTypeForUnshow.Add(LogType.Log);
-            }
-
-            if (!m_isShowWarning)
-            {
-                m_logTypeForUnshow.Add(LogType.Warning);
-            }
-
-            if (!m_isShowError)
-            {
-                m_logTypeForUnshow.Add(LogType.Error);
-                m_logTypeForUnshow.Add(LogType.Assert);
-                m_logTypeForUnshow.Add(LogType.Exception);
-            }
 
             m_selectedLogItem = null;
             m_prevCount = m_currentShowCount = 0;
             m_currentShowingItems = new List<TempLogItem>();
-
             m_hasInited = true;
         }
 
