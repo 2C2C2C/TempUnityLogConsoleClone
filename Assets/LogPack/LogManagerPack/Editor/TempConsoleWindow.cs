@@ -51,7 +51,8 @@ namespace CustomLog
         private GUIStyle m_labelButtonStyle = default;
 
         private List<TempLogItem> m_currentShowingItems = null;
-        private TempLogItem m_selectedLogItem = null;
+        private const int NON_SELECTED_INDEX = -1;
+        private int m_selectedLogIndex = NON_SELECTED_INDEX;
 
         private int m_normalLogCount = 0;
         private int m_warningLogCount = 0;
@@ -82,20 +83,20 @@ namespace CustomLog
 
         public void JumpToStackTop()
         {
-            if (null == m_selectedLogItem)
+            if (NON_SELECTED_INDEX == m_selectedLogIndex)
             {
                 return;
             }
 
             if (Application.isEditor)
             {
-                TempLogManagerHelper.TryGoToTopOfStack(m_selectedLogItem);
+                TempLogManagerHelper.TryGoToTopOfStack(m_currentShowingItems[m_selectedLogIndex]);
             }
         }
 
         public void ClearLogs()
         {
-            m_selectedLogItem = null;
+            m_selectedLogIndex = NON_SELECTED_INDEX;
             TempLogManagerForUnityEditor.ClearLogs();
         }
 
@@ -268,29 +269,18 @@ namespace CustomLog
                 // TODO : fix GUI CLIP ERROR
                 if (index < 0 || index > m_currentShowingItems.Count - 1)
                     break;
-                if (DrawLogItem(elementRect, m_currentShowingItems[index], 0 == i % 2, m_currentShowingItems[index].IsSelected))
+                if (DrawLogItem(elementRect, m_currentShowingItems[index], 0 == i % 2, index == m_selectedLogIndex))
                 {
-                    if (null != m_selectedLogItem)
+                    if (NON_SELECTED_INDEX != m_selectedLogIndex)
                     {
-                        if (m_currentShowingItems[index] == m_selectedLogItem)
+                        if (index == m_selectedLogIndex)
                         {
                             // click a some one, open code
                             JumpToStackTop();
                         }
-                        else
-                        {
-                            m_selectedLogItem.IsSelected = false;
-                            m_selectedLogItem = m_currentShowingItems[index];
-                            TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
-                            m_selectedLogItem.IsSelected = true;
-                        }
                     }
-                    else
-                    {
-                        m_selectedLogItem = m_currentShowingItems[indexOffset + i];
-                        TempLogManagerForUnityEditor.SetSelectedItem(m_selectedLogItem);
-                        m_selectedLogItem.IsSelected = true;
-                    }
+
+                    m_selectedLogIndex = index;
                     GUI.changed = true;
                 }
             }
@@ -333,10 +323,10 @@ namespace CustomLog
             int line = 0;
             int splitwa = 0;
 
-            if (null != m_selectedLogItem)
+            if (NON_SELECTED_INDEX != m_selectedLogIndex)
             {
-                logDetail = m_selectedLogItem.LogStackTrace;
-                GUILayout.TextArea(string.Format("{0}\n", m_selectedLogItem.LogMessage), m_textAreaStyle);
+                logDetail = m_currentShowingItems[m_selectedLogIndex].LogStackTrace;
+                GUILayout.TextArea(string.Format("{0}\n", m_currentShowingItems[m_selectedLogIndex].LogMessage), m_textAreaStyle);
 
                 logDetailMutiLine = logDetail.Split('\n');
                 for (int i = 0; i < logDetailMutiLine.Length; i++)
@@ -492,21 +482,21 @@ namespace CustomLog
             m_labelButtonStyle.border = b;
         }
 
-        private void GetData()
+
+        private void WannaRepaint()
         {
             // make it works for now
             TempLogManagerForUnityEditor.GetLogs(ref m_currentShowingItems);
             m_normalLogCount = TempLogManagerForUnityEditor.InfoLogCount;
             m_warningLogCount = TempLogManagerForUnityEditor.WarningLogCount;
             m_errorLogCount = TempLogManagerForUnityEditor.ErrorLogCount;
-
             m_currentShowCount = m_currentShowingItems.Count;
-        }
 
-        private void WannaRepaint()
-        {
-            GetData();
-            Repaint();
+            if (this == EditorWindow.focusedWindow)
+                GUI.changed = true;
+            else
+                Repaint();
+        
         }
 
         private void CallSavePrefer()
@@ -520,12 +510,11 @@ namespace CustomLog
         private void ContainerInit()
         {
             // set log show flag
-
             m_isShowLog = TempLogManagerForUnityEditor.IsShowLog;
             m_isShowWarning = TempLogManagerForUnityEditor.IsShowWarning;
             m_isShowError = TempLogManagerForUnityEditor.IsShowError;
 
-            m_selectedLogItem = null;
+            m_selectedLogIndex = NON_SELECTED_INDEX;
             m_prevCount = m_currentShowCount = 0;
             m_currentShowingItems = new List<TempLogItem>();
             m_hasInited = true;
@@ -563,12 +552,6 @@ namespace CustomLog
         {
             if (!m_hasInited)
                 return;
-
-            if (m_needRefresh)
-            {
-                GetData();
-                m_needRefresh = false;
-            }
 
             DrawMenuUpperBar();
             DrawUpperPanel();
