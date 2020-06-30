@@ -258,7 +258,6 @@ namespace CustomLog
 
             GUI.BeginClip(currentRect); // to clip the overflow stuff
             int indexOffset = Mathf.FloorToInt(m_scrollPosition / LOG_ITEM_HEIGHT);
-
             float startPosY = (indexOffset * LOG_ITEM_HEIGHT) - m_scrollPosition;
 
             int index = 0;
@@ -274,10 +273,7 @@ namespace CustomLog
                     if (NON_SELECTED_INDEX != m_selectedLogIndex)
                     {
                         if (index == m_selectedLogIndex)
-                        {
-                            // click a some one, open code
-                            JumpToStackTop();
-                        }
+                            JumpToStackTop();// click a some one, open code
                     }
 
                     m_selectedLogIndex = index;
@@ -287,20 +283,76 @@ namespace CustomLog
 
             GUI.EndClip();
 
-            // do stuff for scroller
+            // deal with event
             float scrollSensitivity = LOG_ITEM_HEIGHT;
             float fullElementHeight = elementCount * LOG_ITEM_HEIGHT;
             float maxScrollPos = (fullElementHeight > currentRect.height) ? (fullElementHeight - currentRect.height) : 0;
 
             m_scrollPosition = Mathf.Max(0, GUI.VerticalScrollbar(scrollbarRect, m_scrollPosition, currentRect.height, 0, Mathf.Max(fullElementHeight, currentRect.height)));
             int controlId = GUIUtility.GetControlID(FocusType.Passive);
+            Vector2 mousePos = Event.current.mousePosition;
+            bool mouseInRect = mousePos.x >= m_upperPanel.x && mousePos.y >= m_upperPanel.y && mousePos.x <= m_upperPanel.width && mousePos.y < m_upperPanel.height;
             if (EventType.ScrollWheel == Event.current.GetTypeForControl(controlId))
             {
-                Vector2 mousePos = Event.current.mousePosition;
-                if (mousePos.x >= m_upperPanel.x && mousePos.y >= m_upperPanel.y && mousePos.x <= m_upperPanel.width && mousePos.y < m_upperPanel.height)
+                if (mouseInRect)
                 {
                     m_scrollPosition = Mathf.Clamp(m_scrollPosition + Event.current.delta.y * scrollSensitivity, 0, maxScrollPos);
                     Event.current.Use();
+                }
+            }
+            else if (EventType.KeyDown == Event.current.GetTypeForControl(controlId))
+            {
+                if (mouseInRect)
+                {
+                    if (KeyCode.Return == Event.current.keyCode || KeyCode.KeypadEnter == Event.current.keyCode)
+                    {
+                        Event.current.Use();
+                        JumpToStackTop();
+                    }
+                    else if (KeyCode.DownArrow == Event.current.keyCode)
+                    {
+                        if (NON_SELECTED_INDEX == m_selectedLogIndex)
+                        {
+                            m_selectedLogIndex = indexOffset;
+                            m_isAutoScroll = false;
+                        }
+                        else
+                        {
+                            if (m_selectedLogIndex < indexOffset || m_selectedLogIndex > index)
+                            {
+                                m_scrollPosition = m_selectedLogIndex * LOG_ITEM_HEIGHT;
+                                m_isAutoScroll = false;
+                            }
+                            else
+                            {
+                                if (m_currentShowCount - 1 == m_selectedLogIndex && m_scrollPosition % LOG_ITEM_HEIGHT > 0)
+                                {
+                                    m_scrollPosition += (LOG_ITEM_HEIGHT - m_scrollPosition % LOG_ITEM_HEIGHT);
+                                }
+                                else
+                                {
+                                    if (m_selectedLogIndex == index)
+                                        m_scrollPosition += LOG_ITEM_HEIGHT;
+                                    m_selectedLogIndex++;
+                                }
+                            }
+                            m_selectedLogIndex = Mathf.Clamp(m_selectedLogIndex, 0, m_currentShowCount - 1);
+                        }
+                        Event.current.Use();
+                        GUI.changed = true;
+                    }
+                    else if (KeyCode.UpArrow == Event.current.keyCode)
+                    {
+                        if (NON_SELECTED_INDEX == m_selectedLogIndex)
+                            m_selectedLogIndex = indexOffset;
+                        else
+                        {
+
+
+                        }
+                        Event.current.Use();
+                        GUI.changed = true;
+                    }
                 }
             }
 
@@ -496,7 +548,7 @@ namespace CustomLog
                 GUI.changed = true;
             else
                 Repaint();
-        
+
         }
 
         private void CallSavePrefer()
