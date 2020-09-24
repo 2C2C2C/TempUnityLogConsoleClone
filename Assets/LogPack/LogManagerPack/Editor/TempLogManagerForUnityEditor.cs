@@ -97,6 +97,7 @@ namespace CustomLog
         private static bool _needSave = false;
         private static int _autoSaveTimer = 0;
         private static readonly int SAVE_INTERVAL = 200;
+        private static bool _hasInit = false;
 
         public static event Action OnLogsUpdated;
 
@@ -253,11 +254,13 @@ namespace CustomLog
         [InitializeOnLoadMethod]
         public static void InitLogManager()
         {
+            if (_hasInit)
+                return;
+
             InfoLogCount = WarningLogCount = ErrorLogCount = 0;
-            TempLogManagerHelper.LoadLogManagerSettingFile(out var settingPack);
+            TempLogManagerHelper.LoadLogManagerSettingFile(out _currentPack);
             // Debug.Log("load editor log manager setting");
-            _currentPack = new TempLogManagerSettingPack(settingPack);
-            ApplySettingPack(in settingPack);
+            ApplySettingPack(in _currentPack);
 
             TempLogManager.InitLogManager();
             TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
@@ -280,6 +283,7 @@ namespace CustomLog
             EditorApplication.quitting -= OnEditorQuitting;
             EditorApplication.quitting += OnEditorQuitting;
             // Debug.Log("Editor LogManager Inited");
+            _hasInit = true;
         }
 
         public static void SetSelectedItem(TempLogItem nextSelectedItem)
@@ -315,6 +319,7 @@ namespace CustomLog
             ShowLogTypeFlag = pack.LogTypeFlag;
             IsClearOnPlay = pack.IsClearOnPlay;
             _writeLogFileInEditor = pack.WriteFileInEditor;
+            UpperSizeRatio = pack.UpperPanelSizeRatio;
         }
 
         public static void AddNewLogItem(TempLogItem log)
@@ -352,6 +357,12 @@ namespace CustomLog
             if (Application.isPlaying)
                 TempLogManager.SetFlagOFWriteFile(_writeLogFileInEditor);
 
+        }
+
+        public static void LoadSetting()
+        {
+            TempLogManagerHelper.LoadLogManagerSettingFile(out _currentPack);
+            ApplySettingPack(in _currentPack);
         }
 
         public static void SaveSetting()

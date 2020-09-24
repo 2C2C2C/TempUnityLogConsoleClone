@@ -572,19 +572,22 @@ namespace CustomLog
             m_hasInited = true;
         }
 
-        private void InitSomeStuff()
+        private void SyncSetting()
         {
+            TempLogManagerForUnityEditor.LoadSetting();
+
             m_isClearOnPlay = TempLogManagerForUnityEditor.IsClearOnPlay;
             m_isShowLog = TempLogManagerForUnityEditor.IsShowLog;
             m_isShowWarning = TempLogManagerForUnityEditor.IsShowWarning;
             m_isShowError = TempLogManagerForUnityEditor.IsShowError;
+            m_upperSizeRatio = TempLogManagerForUnityEditor.UpperSizeRatio;
         }
 
         #region life circle
 
         private void Awake()
         {
-            m_upperSizeRatio = TempLogManagerForUnityEditor.GetInitPack().UpperPanelSizeRatio;
+            TempLogManagerForUnityEditor.InitLogManager();
             OnTempConsoleCreated?.Invoke();
             _instance = this;
         }
@@ -592,10 +595,10 @@ namespace CustomLog
         private void OnEnable()
         {
             m_hasInited = false;
+            SyncSetting();
             GetAssets();
             ContainerInit();
 
-            InitSomeStuff();
             TempLogManagerForUnityEditor.OnLogsUpdated += WannaRepaint;
             WannaRepaint();
         }
